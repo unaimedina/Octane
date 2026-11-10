@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "OCTANE",
     short_name: "OCTANE",
-    description: "Self-hosted, authenticated workspace for the OpenCode agent.",
+    description: "Self-hosted AI coding workspace for OpenCode.",
     start_url: "/chat",
     display: "standalone",
     background_color: "#0b0f14",

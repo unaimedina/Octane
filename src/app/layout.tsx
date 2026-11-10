@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const description =
-  "OCTANE is a self-hosted, authenticated workspace for the OpenCode agent, with live sessions, subagents, visual diffs and model choice.";
+  "Self-hosted AI coding workspace for OpenCode with secure authentication, live sessions, file management, code diffs, terminal access, tasks and usage tracking.";
 const appUrl = process.env.APP_URL?.trim() || "http://localhost:3000";
 
 export const metadata: Metadata = {

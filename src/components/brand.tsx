@@ -3,17 +3,35 @@ import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <Image
-      src="/brand/icon-192.png"
-      alt=""
-      aria-hidden="true"
-      width={192}
-      height={192}
-      draggable={false}
+    <div
       className={cn(
-        "size-9 shrink-0 select-none rounded-[10px] object-cover",
+        "relative grid size-9 shrink-0 place-items-center rounded-[10px] border border-border/70 bg-[#12171e] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_1px_rgba(255,138,0,0.06)]",
         className,
       )}
+      aria-hidden="true"
+    >
+      <Image
+        src="/brand/minimal.png"
+        alt=""
+        width={512}
+        height={165}
+        draggable={false}
+        className="h-auto w-[78%] object-contain"
+      />
+    </div>
+  );
+}
+
+/** Full OCTANE wordmark for dark surfaces (the white lettering needs a dark background). */
+export function BrandLogo({ className }: { className?: string }) {
+  return (
+    <Image
+      src="/brand/logo.png"
+      alt="OCTANE"
+      width={1200}
+      height={147}
+      draggable={false}
+      className={cn("h-6 w-auto", className)}
     />
   );
 }

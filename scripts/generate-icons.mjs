@@ -5,9 +5,9 @@ import sharp from "sharp";
 /**
  * Build every app/brand icon from the source images in ./assets.
  *
- * Keep the PNGs in assets as the source of truth: replacing assets/icon.png and
- * assets/logo.png then running `npm run icons` refreshes the favicon, app icons,
- * Apple touch icon, manifest icons and the Open Graph logo.
+ * Keep the PNGs in assets as the source of truth: replacing assets/minimal.png
+ * or assets/logo.png then running `npm run icons` refreshes the favicon, app
+ * icons, Apple touch icon, manifest icons, header mark and Open Graph logo.
  */
 
 const root = process.cwd();
@@ -21,36 +21,51 @@ function transparent() {
   return { r: 0, g: 0, b: 0, alpha: 0 };
 }
 
-async function renderIcon(size, output, options = {}) {
-  const { padding = 0, flatten = false } = options;
-  let pipeline = sharp(path.join(assetsDir, "icon.png"));
+let markPromise;
 
-  if (padding > 0) {
-    const inner = size - padding * 2;
-    pipeline = pipeline
-      .resize(inner, inner, { fit: "contain", background: transparent() })
-      .extend({
-        top: padding,
-        bottom: padding,
-        left: padding,
-        right: padding,
-        background: BACKGROUND,
-      });
-  } else {
-    pipeline = pipeline.resize(size, size, {
-      fit: "contain",
-      background: transparent(),
-    });
-  }
-
-  if (flatten || padding > 0) {
-    pipeline = pipeline.flatten({ background: BACKGROUND });
-  }
-
-  await pipeline.png({ compressionLevel: 9 }).toFile(output);
+/** The flat OC mark, with its transparent padding trimmed away. */
+function trimmedMark() {
+  markPromise ??= sharp(path.join(assetsDir, "minimal.png"))
+    .trim({ threshold: 1 })
+    .png()
+    .toBuffer();
+  return markPromise;
 }
 
-/** Pack PNGs into an ICO container (PNG-compressed entries, supported by all modern browsers). */
+async function iconBuffer(size, options = {}) {
+  const { markScale = 0.56, rounded = true, flatten = false } = options;
+  const mark = await trimmedMark();
+  const target = Math.max(1, Math.round(size * markScale));
+  const resized = await sharp(mark)
+    .resize(target, target, { fit: "contain", background: transparent() })
+    .png()
+    .toBuffer();
+  const meta = await sharp(resized).metadata();
+  const radius = rounded ? Math.round(size * 0.22) : 0;
+  const background = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
+      `<rect width="${size}" height="${size}" rx="${radius}" fill="${BACKGROUND}"/>` +
+      `</svg>`,
+  );
+
+  let pipeline = sharp(background).composite([
+    {
+      input: resized,
+      left: Math.round((size - meta.width) / 2),
+      top: Math.round((size - meta.height) / 2),
+    },
+  ]);
+  if (flatten) {
+    pipeline = pipeline.flatten({ background: BACKGROUND });
+  }
+  return pipeline.png({ compressionLevel: 9 }).toBuffer();
+}
+
+async function writeIcon(size, output, options) {
+  await writeFile(output, await iconBuffer(size, options));
+}
+
+/** Pack PNGs into an ICO container (PNG entries, supported by modern browsers). */
 function encodeIco(entries) {
   const header = Buffer.alloc(6);
   header.writeUInt16LE(0, 0); // reserved
@@ -81,22 +96,28 @@ async function buildFavicon() {
   const entries = await Promise.all(
     sizes.map(async (size) => ({
       size,
-      data: await sharp(path.join(assetsDir, "icon.png"))
-        .resize(size, size, { fit: "contain", background: transparent() })
-        .png({ compressionLevel: 9 })
-        .toBuffer(),
+      data: await iconBuffer(size, { markScale: 0.62 }),
     })),
   );
-  await mkdir(appDir, { recursive: true });
   await writeFile(path.join(appDir, "favicon.ico"), encodeIco(entries));
 }
 
+async function buildMinimal() {
+  const mark = await sharp(path.join(assetsDir, "minimal.png"))
+    .trim({ threshold: 1 })
+    .resize({ width: 512 })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  await writeFile(path.join(brandDir, "minimal.png"), mark);
+}
+
 async function buildLogo() {
-  await mkdir(brandDir, { recursive: true });
-  await sharp(path.join(assetsDir, "logo.png"))
+  const logo = await sharp(path.join(assetsDir, "logo.png"))
+    .trim({ threshold: 1 })
     .resize({ width: 1200 })
     .png({ compressionLevel: 9 })
-    .toFile(path.join(brandDir, "logo.png"));
+    .toBuffer();
+  await writeFile(path.join(brandDir, "logo.png"), logo);
 }
 
 async function main() {
@@ -106,14 +127,17 @@ async function main() {
   ]);
 
   await Promise.all([
-    renderIcon(512, path.join(appDir, "icon.png")),
-    renderIcon(180, path.join(appDir, "apple-icon.png"), { flatten: true }),
-    renderIcon(192, path.join(brandDir, "icon-192.png")),
-    renderIcon(512, path.join(brandDir, "icon-512.png")),
-    renderIcon(512, path.join(brandDir, "icon-maskable-512.png"), {
-      padding: 51,
+    writeIcon(512, path.join(appDir, "icon.png")),
+    writeIcon(180, path.join(appDir, "apple-icon.png"), { flatten: true }),
+    writeIcon(192, path.join(brandDir, "icon-192.png")),
+    writeIcon(512, path.join(brandDir, "icon-512.png")),
+    writeIcon(512, path.join(brandDir, "icon-maskable-512.png"), {
+      markScale: 0.44,
+      rounded: false,
+      flatten: true,
     }),
     buildFavicon(),
+    buildMinimal(),
     buildLogo(),
   ]);
 

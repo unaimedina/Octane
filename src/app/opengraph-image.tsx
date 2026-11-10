@@ -123,26 +123,26 @@ export default function Image() {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  fontSize: 64,
-                  lineHeight: 1.02,
-                  letterSpacing: "-0.05em",
+                  fontSize: 54,
+                  lineHeight: 1.06,
+                  letterSpacing: "-0.045em",
                   fontWeight: 600,
                 }}
               >
-                <span>Your codebase,</span>
-                <span style={{ color: "#a1a7b3" }}>in the browser.</span>
+                <span>Self-hosted AI coding</span>
+                <span style={{ color: "#a1a7b3" }}>workspace for OpenCode.</span>
               </div>
               <div
                 style={{
                   display: "flex",
-                  fontSize: 23,
+                  fontSize: 22,
                   lineHeight: 1.4,
                   color: "#a1a7b3",
                   maxWidth: 520,
                 }}
               >
-                Live sessions, subagent progress, visual diffs and local usage.
-                Authenticated, and entirely yours.
+                Secure authentication, live AI sessions, file management, code
+                diffs, terminal access, tasks and usage tracking.
               </div>
             </div>
 

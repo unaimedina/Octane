@@ -4,14 +4,12 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Check,
   CircleAlert,
   Eye,
   EyeOff,
   Loader2,
-  ShieldCheck,
 } from "lucide-react";
-import { Wordmark } from "@/components/brand";
+import { BrandLogo } from "@/components/brand";
 
 type Health = {
   authConfigured: boolean;
@@ -113,32 +111,10 @@ export function LoginForm({
     }
   }
 
-  const online = health?.upstream.reachable && health.upstream.healthy;
-  const perUser = health?.upstream.mode === "per-user";
+  const runtimeReady = Boolean(
+    health?.upstream.reachable && health.upstream.healthy,
+  );
   const discordHref = `/api/auth/discord/start?next=${encodeURIComponent(next)}`;
-  const bullets = [
-    passwordEnabled ? "Password sign-in with rate limiting" : null,
-    discordEnabled ? "Discord sign-in gated by a server role" : null,
-    perUser ? "A private OpenCode server and provider keys per user" : null,
-    "Signed HttpOnly sessions, CSRF and rate limiting",
-  ].filter(Boolean) as string[];
-
-  const methods = [
-    passwordEnabled ? "password" : null,
-    discordEnabled ? "discord" : null,
-  ].filter(Boolean) as string[];
-
-  const serverStatus = health
-    ? online
-      ? `OpenCode ${health.upstream.version ?? ""}${perUser ? " · per-user" : ""} online`
-      : health.upstream.unauthorized
-        ? "OpenCode rejected credentials"
-        : perUser
-          ? "OpenCode runtime unavailable"
-          : health.upstream.reachable
-            ? "OpenCode server not ready"
-            : "OpenCode server unreachable"
-    : "Checking server";
 
   return (
     <main
@@ -150,103 +126,27 @@ export function LoginForm({
       }}
     >
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1240px] flex-col px-5 sm:px-8">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-border/60">
-          <Wordmark />
-          <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-2 rounded-full border border-border/60 bg-card/35 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:flex">
-              <span
-                className={`size-1.5 rounded-full ${
-                  online ? "bg-success pulse-dot" : "bg-warning"
-                }`}
-              />
-              {serverStatus}
-            </span>
-            <span className="rounded-full border border-brand/25 bg-brand/8 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-brand">
-              self-hosted
-            </span>
-          </div>
+        <header className="flex h-16 shrink-0 items-center border-b border-border/60">
+          <BrandLogo />
         </header>
 
-        <div className="grid flex-1 items-center gap-12 py-12 lg:grid-cols-[1.08fr_0.92fr] lg:gap-20 lg:py-16">
-          <section className="order-2 max-w-[680px] lg:order-1">
-            <div className="mb-6 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-              <span className="h-px w-8 bg-brand" />
-              <span className="text-brand">OC</span>
-              <span className="text-muted-foreground/40">/</span>
-              OpenCode client
-            </div>
-
-            <h1 className="text-balance text-[clamp(2.75rem,6.2vw,5.6rem)] font-semibold leading-[0.96] tracking-[-0.05em]">
-              Your codebase,
+        <div className="grid min-w-0 flex-1 items-center gap-12 py-12 lg:grid-cols-[1.08fr_0.92fr] lg:gap-20 lg:py-16">
+          <section className="order-2 min-w-0 max-w-[680px] lg:order-1">
+            <h1 className="text-balance text-[clamp(2.15rem,4.2vw,3.25rem)] font-semibold leading-[1.07] tracking-[-0.045em]">
+              Self-hosted AI coding
               <br />
-              <span className="text-muted-foreground">in the browser.</span>
-              <span
-                aria-hidden="true"
-                className="ml-2 inline-block h-[0.6em] w-[0.07em] translate-y-[0.04em] rounded-[1px] bg-brand align-baseline"
-              />
+              <span className="text-muted-foreground">workspace for OpenCode.</span>
             </h1>
 
             <p className="mt-6 max-w-[560px] text-pretty text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-              A self-hosted OCTANE workspace for the OpenCode agent. Stream sessions,
-              follow subagent progress, review visual diffs and keep every credential
-              on your own server.
+              Secure authentication, live AI sessions, file management, code diffs,
+              terminal access, task management and usage tracking. Docker-ready, with
+              a private environment for each user.
             </p>
-
-            <div className="glass-panel mt-10 overflow-hidden rounded-xl">
-              {bullets.map((item) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-3 border-b border-border/50 px-4 py-3.5 last:border-b-0"
-                >
-                  <span className="grid size-5 shrink-0 place-items-center rounded-[6px] bg-brand/10 text-brand">
-                    <Check className="size-3" />
-                  </span>
-                  <span className="text-[13px] text-muted-foreground">{item}</span>
-                </div>
-              ))}
-            </div>
-
-            <dl className="mt-8 grid grid-cols-2 gap-6 border-t border-border/60 pt-6 sm:grid-cols-3">
-              {[
-                ["Runtime", "OpenCode"],
-                [
-                  "Auth",
-                  passwordEnabled && discordEnabled
-                    ? "Password + Discord"
-                    : passwordEnabled
-                      ? "Password"
-                      : discordEnabled
-                        ? "Discord"
-                        : "Not configured",
-                ],
-                [
-                  "Workspace",
-                  online ? `OpenCode ${health?.upstream.version ?? ""}` : "Offline",
-                ],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground/50">
-                    {label}
-                  </dt>
-                  <dd className="mt-1.5 text-[13px] font-medium tracking-[-0.01em]">
-                    {value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
           </section>
 
-          <section className="order-1 w-full max-w-[460px] justify-self-start lg:order-2 lg:justify-self-end">
+          <section className="order-1 min-w-0 w-full max-w-[460px] justify-self-start lg:order-2 lg:justify-self-end">
             <div className="glass-float relative rounded-2xl p-6 sm:p-8">
-              <div className="mb-6 flex items-center justify-between border-b border-border/60 pb-4">
-                <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-brand">
-                  Authentication
-                </span>
-                <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/60">
-                  {methods.length ? methods.join(" + ") : "unconfigured"}
-                </span>
-              </div>
-
               <h2 className="text-3xl font-semibold tracking-[-0.04em]">Sign in</h2>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {passwordEnabled && discordEnabled
@@ -293,7 +193,7 @@ export function LoginForm({
                   </div>
                 ) : null}
 
-                {health?.upstream.mode === "per-user" && !online ? (
+                {health?.upstream.mode === "per-user" && !runtimeReady ? (
                   <div className="flex items-start gap-2.5 rounded-[10px] border border-warning/30 bg-warning/8 px-3 py-2.5 text-[13px] text-warning">
                     <CircleAlert className="mt-0.5 size-4 shrink-0" />
                     <span>
@@ -307,12 +207,12 @@ export function LoginForm({
                 {passwordEnabled ? (
                   <form onSubmit={onSubmit} className="space-y-4">
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                        <label htmlFor="password">Password</label>
-                        <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/50">
-                          required
-                        </span>
-                      </div>
+                      <label
+                        htmlFor="password"
+                        className="text-[11px] font-medium text-muted-foreground"
+                      >
+                        Password
+                      </label>
                       <div className="relative">
                         <input
                           ref={inputRef}
@@ -385,21 +285,12 @@ export function LoginForm({
                   </a>
                 ) : null}
               </div>
-
-              <div className="mt-6 flex items-center gap-2 border-t border-border/60 pt-4 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/60">
-                <ShieldCheck className="size-3 text-success" />
-                Signed HttpOnly cookie · CSRF · rate limited
-              </div>
             </div>
           </section>
         </div>
 
-        <footer className="flex shrink-0 flex-col gap-2 border-t border-border/60 py-4 font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground/50 sm:flex-row sm:items-center sm:justify-between">
-          <span className="inline-flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-brand" />
-            OCTANE · OpenCode client
-          </span>
-          <span>not affiliated with Anomaly</span>
+        <footer className="shrink-0 py-4 text-center text-[10px] text-muted-foreground/50">
+          Not affiliated with Anomaly.
         </footer>
       </div>
     </main>
