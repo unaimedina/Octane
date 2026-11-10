@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { ImageResponse } from "next/og";
+
+export const runtime = "nodejs";
 
 export const alt =
   "OCTANE — a self-hosted OpenCode workspace";
@@ -10,6 +14,10 @@ export const contentType = "image/png";
 
 const mono = "monospace";
 const sans = "sans-serif";
+
+const brandLogo = `data:image/png;base64,${readFileSync(
+  path.join(process.cwd(), "public", "brand", "logo.png"),
+).toString("base64")}`;
 
 export default function Image() {
   return new ImageResponse(
@@ -40,50 +48,26 @@ export default function Image() {
               justifyContent: "space-between",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* ImageResponse only accepts plain <img>; next/image is not available here. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={brandLogo}
+                alt=""
+                width={240}
+                height={80}
+                style={{ width: 240, height: 80, objectFit: "contain" }}
+              />
               <div
                 style={{
-                  width: 54,
-                  height: 54,
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 13,
-                  border: "1px solid #2a323c",
-                  background: "#12171e",
-                  color: "#f8fafc",
                   fontFamily: mono,
-                  fontSize: 20,
-                  fontWeight: 700,
-                  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+                  fontSize: 10,
+                  letterSpacing: "0.2em",
+                  color: "#717a87",
                 }}
               >
-                &gt;_
-              </div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    fontSize: 28,
-                    fontWeight: 700,
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  <span style={{ color: "#ff8a00" }}>OC</span>
-                  <span>TANE</span>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    marginTop: 5,
-                    fontFamily: mono,
-                    fontSize: 10,
-                    letterSpacing: "0.2em",
-                    color: "#717a87",
-                  }}
-                >
-                  OPENCODE WORKSPACE
-                </div>
+                OPENCODE WORKSPACE
               </div>
             </div>
             <div

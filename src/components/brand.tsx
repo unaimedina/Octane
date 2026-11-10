@@ -1,31 +1,20 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <div
+    <Image
+      src="/brand/icon-192.png"
+      alt=""
+      aria-hidden="true"
+      width={192}
+      height={192}
+      draggable={false}
       className={cn(
-        "relative grid size-9 shrink-0 place-items-center rounded-[10px] border border-border/70 bg-[#12171e] text-brand shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_1px_rgba(255,138,0,0.06)]",
+        "size-9 shrink-0 select-none rounded-[10px] object-cover",
         className,
       )}
-      aria-hidden="true"
-    >
-      <svg viewBox="0 0 28 28" fill="none" className="size-5">
-        <path
-          d="M14 2.6 23.4 8v12L14 25.4 4.6 20V8z"
-          fill="currentColor"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M9.2 10.2 13 14l-3.8 3.8M15.4 18h4.2"
-          stroke="#f8fafc"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </div>
+    />
   );
 }
 

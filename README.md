@@ -227,16 +227,19 @@ Discord is enabled only when all five values are present; otherwise the login pa
 
 ```bash
 npm run dev          # local development
-npm run build        # production build
+npm run build        # production build (regenerates icons first)
 npm run start        # run the production server
 npm run typecheck    # TypeScript only
 npm run lint         # ESLint
+npm run icons        # regenerate app icons from ./assets
 npm run hash-password -- "password"
 ```
 
 ## Project layout
 
 ```text
+assets/                    source logos (icon.png, logo.png, minimal.png)
+scripts/generate-icons.mjs builds favicons/app icons/manifest icons from assets
 src/app/(app)/             authenticated workspace (chat, files, settings, usage)
 src/app/login/             login screen
 src/app/api/auth/          password login, Discord OAuth, logout, session
