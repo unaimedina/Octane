@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="1200" height="360" role="img" aria-labelledby="flowTitle flowDesc">
+  <title id="flowTitle">Request path</title>
+  <desc id="flowDesc">OCTANE request path: browser to Next.js BFF to OpenCode server to workspace and models. Credentials stay on the server.</desc>
+
+  <defs>
+    <pattern id="flowDots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1" fill="#1a1f26"/>
+    </pattern>
+    <linearGradient id="flowLine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2a323c"/>
+      <stop offset="100%" stop-color="#4a5563"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="360" rx="18" fill="#0b0f14"/>
+  <rect width="1200" height="360" rx="18" fill="url(#flowDots)" opacity="0.5"/>
+  <rect x="0.5" y="0.5" width="1199" height="359" rx="17.5" fill="none" stroke="#242b34"/>
+
+  <text x="76" y="56" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#ff8a00">&gt;_</text>
+  <text x="108" y="56" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" letter-spacing="2.2" fill="#a1a7b3">REQUEST PATH</text>
+  <text x="76" y="100" font-family="Inter Tight, Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="27" font-weight="600" letter-spacing="-0.6" fill="#f8fafc">One origin in front. A private network behind.</text>
+
+  <!-- Browser -->
+  <rect x="76" y="128" width="220" height="110" rx="10" fill="#151a21" stroke="#2a323c"/>
+  <g transform="translate(96 146)" fill="none" stroke="#ff8a00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="1" y="2" width="18" height="14" rx="2"/>
+    <path d="M1 6h18M4 4.5h.01M6.5 4.5h.01"/>
+  </g>
+  <text x="96" y="190" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" font-weight="600" fill="#f8fafc">Browser</text>
+  <text x="96" y="212" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" fill="#a1a7b3">React UI · cookies</text>
+
+  <!-- BFF -->
+  <rect x="352" y="128" width="220" height="110" rx="10" fill="#151a21" stroke="#2a323c"/>
+  <g transform="translate(372 146)" fill="none" stroke="#ff8a00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 2l7 3v6c0 4.5-3 7-7 8-4-1-7-3.5-7-8V5z"/>
+    <path d="M7 10.5l2 2 4-4.5"/>
+  </g>
+  <text x="372" y="190" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" font-weight="600" fill="#f8fafc">Next.js BFF</text>
+  <text x="372" y="212" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" fill="#a1a7b3">auth · CSRF · SSE</text>
+
+  <!-- OpenCode -->
+  <rect x="628" y="128" width="220" height="110" rx="10" fill="#151a21" stroke="#2a323c"/>
+  <g transform="translate(648 146)" fill="none" stroke="#ff8a00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="3" width="16" height="14" rx="2"/>
+    <path d="M5 7l3 3-3 3M11 13h4"/>
+  </g>
+  <text x="648" y="190" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" font-weight="600" fill="#f8fafc">OpenCode server</text>
+  <text x="648" y="212" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" fill="#a1a7b3">v1 or v2 API</text>
+
+  <!-- Workspace -->
+  <rect x="904" y="128" width="220" height="110" rx="10" fill="#151a21" stroke="#2a323c"/>
+  <g transform="translate(924 146)" fill="none" stroke="#ff8a00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 5h5l2 2.5h9V16H2z"/>
+    <path d="M2 8v8h16"/>
+  </g>
+  <text x="924" y="190" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" font-weight="600" fill="#f8fafc">Workspace</text>
+  <text x="924" y="212" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" fill="#a1a7b3">files · git · models</text>
+
+  <!-- Connectors -->
+  <line x1="296" y1="183" x2="346" y2="183" stroke="url(#flowLine)" stroke-width="1.5"/>
+  <path d="M340 178l6 5-6 5" fill="none" stroke="#8a94a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="324" cy="183" r="2.5" fill="#ff8a00"/>
+
+  <line x1="572" y1="183" x2="622" y2="183" stroke="url(#flowLine)" stroke-width="1.5"/>
+  <path d="M616 178l6 5-6 5" fill="none" stroke="#8a94a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="600" cy="183" r="2.5" fill="#ff8a00"/>
+
+  <line x1="848" y1="183" x2="898" y2="183" stroke="url(#flowLine)" stroke-width="1.5"/>
+  <path d="M892 178l6 5-6 5" fill="none" stroke="#8a94a3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="876" cy="183" r="2.5" fill="#ff8a00"/>
+
+  <text x="324" y="258" text-anchor="middle" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#717a87">HTTPS</text>
+  <text x="600" y="258" text-anchor="middle" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#717a87">server-side</text>
+  <text x="876" y="258" text-anchor="middle" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#717a87">read / write</text>
+
+  <!-- Trust note -->
+  <rect x="76" y="286" width="1048" height="44" rx="8" fill="#151a21" stroke="#242b34"/>
+  <g transform="translate(94 297)" fill="none" stroke="#ff8a00" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 1l7 3v6c0 4.5-3 7-7 8-4-1-7-3.5-7-8V4z"/>
+  </g>
+  <text x="126" y="313" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="16" fill="#a1a7b3">The browser never sees <tspan font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#ff8a00">OPENCODE_SERVER_PASSWORD</tspan>. Every call is authenticated and CSRF-checked.</text>
+</svg>
