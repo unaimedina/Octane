@@ -254,7 +254,7 @@ export function AnthropicConnectCard({
           <div className="flex items-start gap-2.5 rounded-lg border border-border/60 bg-muted/25 px-3 py-2.5">
             <Plug className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Connect Anthropic to the OpenCode server. Claude models then appear in
+              Connect Anthropic to your OpenCode server. Claude models then appear in
               the OpenCode model picker as normal provider models.
             </p>
           </div>
@@ -308,8 +308,8 @@ export function AnthropicConnectCard({
         ) : null}
 
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          This key is stored on the OpenCode server and is used for Claude models
-          through OpenCode.
+          This key is stored on your OpenCode server and is only used for your
+          sessions.
         </p>
       </div>
 
@@ -320,7 +320,7 @@ export function AnthropicConnectCard({
               <KeyRound className="size-4" /> Connect Anthropic
             </DialogTitle>
             <DialogDescription>
-              The key is stored on the OpenCode server, never in this browser.
+              The key is stored on your own OpenCode server, never in this browser.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={connectKey} className="space-y-3">

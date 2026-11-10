@@ -1,7 +1,30 @@
 /** Server-side environment access. Never import this from client components. */
 
+import os from "node:os";
+import path from "node:path";
+
 const DEV_SECRET = "opencode-web-development-secret-change-me";
 
+export type ServerMode = "shared" | "per-user";
+
+/**
+ * How OpenCode servers are provisioned.
+ *
+ * - per-user (default): OCTANE spawns a dedicated `opencode serve` process for
+ *   every signed-in user, with its own data directory. Sessions, provider keys
+ *   and OpenCode Console logins are isolated.
+ * - shared: every user talks to the single `OPENCODE_SERVER_URL` server.
+ */
+export function serverMode(): ServerMode {
+  const value = process.env.OPENCODE_SERVER_MODE?.trim().toLowerCase();
+  return value === "shared" || value === "single" ? "shared" : "per-user";
+}
+
+export function perUserServers(): boolean {
+  return serverMode() === "per-user";
+}
+
+/** OpenCode server used only in shared mode. */
 export function serverUrl(): string {
   return (process.env.OPENCODE_SERVER_URL ?? "http://127.0.0.1:4096").replace(
     /\/+$/,
@@ -9,13 +32,27 @@ export function serverUrl(): string {
   );
 }
 
-export function serverDisplayUrl(): string {
-  try {
-    const url = new URL(serverUrl());
-    return `${url.protocol}//${url.host}`;
-  } catch {
-    return "invalid upstream url";
-  }
+/** CLI invoked to start a user's OpenCode server. */
+export function opencodeBin(): string {
+  return process.env.OPENCODE_BIN?.trim() || "opencode";
+}
+
+/** Base folder holding one isolated OpenCode data directory per user. */
+export function opencodeUsersDir(): string {
+  const configured = process.env.OPENCODE_USERS_DIR?.trim();
+  if (configured) return path.resolve(configured);
+  return path.join(os.homedir(), ".local", "share", "octane", "users");
+}
+
+/** Working directory used by per-user OpenCode servers. */
+export function opencodeWorkspace(): string {
+  const configured = process.env.OPENCODE_WORKSPACE?.trim();
+  return configured ? path.resolve(configured) : process.cwd();
+}
+
+/** Skills installed from Settings, shared by every user's server. */
+export function opencodeSkillsDir(): string | null {
+  return process.env.OPENCODE_SKILLS_DIR?.trim() || null;
 }
 
 export function serverAuthHeader(): string | null {

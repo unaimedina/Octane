@@ -246,7 +246,7 @@ export function OpenCodeAccountCard({
               <LogIn className="size-4" /> Sign in to OpenCode Console
             </DialogTitle>
             <DialogDescription>
-              Authorize this server in your browser. Credentials stay on the
+              Authorize this server in your browser. Credentials stay on your
               OpenCode server, never in this web app.
             </DialogDescription>
           </DialogHeader>

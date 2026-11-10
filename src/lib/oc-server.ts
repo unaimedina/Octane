@@ -739,29 +739,36 @@ export async function getProviders(): Promise<{
 }
 
 export async function getOpenCodeIntegration(): Promise<OpenCodeIntegration | null> {
-  try {
-    if ((await apiFlavor()) !== "v2") return null;
-    const result = await upstreamJson<Raw>("/api/integration/opencode");
-    const data = raw(result.data);
-    const methods = arr(data.methods).map(raw);
-    const oauth = methods.find((method) => str(method.type) === "oauth");
-    return {
-      id: "opencode",
-      name: str(data.name, "OpenCode Console"),
-      connections: arr(data.connections).map((value) => {
-        const connection = raw(value);
-        return {
-          type: str(connection.type, "credential"),
-          id: str(connection.id) || undefined,
-          label: str(connection.label) || undefined,
-          method: str(connection.method) || undefined,
-        };
-      }),
-      oauthMethodID: oauth ? str(oauth.id) || null : null,
-    };
-  } catch {
-    return null;
+  if ((await apiFlavor()) !== "v2") return null;
+  // Newly spawned per-user servers expose integrations shortly after /api/info.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await upstreamJson<Raw>("/api/integration/opencode");
+      const data = raw(result.data);
+      const methods = arr(data.methods).map(raw);
+      const oauth = methods.find((method) => str(method.type) === "oauth");
+      return {
+        id: "opencode",
+        name: str(data.name, "OpenCode Console"),
+        connections: arr(data.connections).map((value) => {
+          const connection = raw(value);
+          return {
+            type: str(connection.type, "credential"),
+            id: str(connection.id) || undefined,
+            label: str(connection.label) || undefined,
+            method: str(connection.method) || undefined,
+          };
+        }),
+        oauthMethodID: oauth ? str(oauth.id) || null : null,
+      };
+    } catch (error) {
+      const retryable =
+        error instanceof UpstreamError && error.status === 404 && attempt < 2;
+      if (!retryable) return null;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
   }
+  return null;
 }
 
 const OPENCODE_INTEGRATION = "/api/integration/opencode";

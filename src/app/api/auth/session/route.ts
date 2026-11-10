@@ -55,7 +55,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const { token } = await createSessionToken();
+  const { token } = await createSessionToken({
+    subject: session.subject,
+    username: session.username,
+  });
   const csrfToken = newCsrfToken();
   await setAuthCookies(token, csrfToken, requestIsSecure(request));
   return NextResponse.json(

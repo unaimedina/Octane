@@ -1,4 +1,4 @@
-import { apiFlavor, upstreamJson } from "./upstream";
+import { apiFlavor, UpstreamError, upstreamJson } from "./upstream";
 import type {
   IntegrationAttemptInfo,
   IntegrationAttemptStatus,
@@ -102,10 +102,22 @@ export async function getIntegration(
   id: string,
 ): Promise<ProviderIntegration | null> {
   if ((await apiFlavor()) !== "v2") return null;
-  const result = await upstreamJson<Raw>(
-    `/api/integration/${encodeURIComponent(id)}`,
-  );
-  return mapIntegration(result.data);
+  // Integrations load asynchronously after a per-user server starts; a newly
+  // spawned server can answer 404 for a moment even though `/api/info` is up.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await upstreamJson<Raw>(
+        `/api/integration/${encodeURIComponent(id)}`,
+      );
+      return mapIntegration(result.data);
+    } catch (error) {
+      const retryable =
+        error instanceof UpstreamError && error.status === 404 && attempt < 2;
+      if (!retryable) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+  return null;
 }
 
 export async function connectIntegrationKey(

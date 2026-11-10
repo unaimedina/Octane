@@ -8,6 +8,7 @@ README.md
 AGENTS.md
 .env
 .env.*
+data
 
 npm-debug.log*
 *.tsbuildinfo

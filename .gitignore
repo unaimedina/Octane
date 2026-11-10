@@ -20,6 +20,9 @@
 # production
 /build
 
+# local per-user OpenCode data
+/data/
+
 # misc
 .DS_Store
 *.pem

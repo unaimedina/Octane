@@ -135,6 +135,7 @@ export function SettingsView({
   health,
   pathInfo,
   serverUrl,
+  serverMode,
   providers,
   config,
   mcp,
@@ -149,6 +150,7 @@ export function SettingsView({
   health: HealthInfo | null;
   pathInfo: Path | null;
   serverUrl: string;
+  serverMode: "shared" | "per-user";
   providers: ProviderRow[];
   config: SafeConfig;
   mcp: Record<string, unknown>;
@@ -252,12 +254,23 @@ export function SettingsView({
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-sm">
-                <Server className="size-4" /> Server
+                <Server className="size-4" /> Your server
               </CardTitle>
-              <CardDescription>The upstream OpenCode HTTP server.</CardDescription>
+              <CardDescription>
+                {serverMode === "per-user"
+                  ? "A dedicated OpenCode server runs for your account."
+                  : "The shared upstream OpenCode HTTP server."}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <CopyRow label="Endpoint" value={serverUrl} />
+              <CopyRow
+                label={serverMode === "per-user" ? "Local endpoint" : "Endpoint"}
+                value={serverUrl}
+              />
+              <CopyRow
+                label="Mode"
+                value={serverMode === "per-user" ? "per-user · isolated" : "shared"}
+              />
               <CopyRow label="Version" value={health?.version ?? "unreachable"} />
               <CopyRow
                 label="Status"
@@ -298,6 +311,7 @@ export function SettingsView({
                   ["Session", `signed · ${sessionHours}h`],
                   ["Transport", "same-origin proxy"],
                   ["Login", authMethod],
+                  ["Isolation", serverMode === "per-user" ? "per-user server" : "shared server"],
                   ["CSRF", "double submit"],
                 ].map(([label, value]) => (
                   <div
@@ -389,7 +403,9 @@ export function SettingsView({
                 <Plug className="size-4" /> Anthropic API key
               </CardTitle>
               <CardDescription>
-                Connect an Anthropic API key to OpenCode for Claude models.
+                {serverMode === "per-user"
+                  ? "Connect your own Anthropic API key to your OpenCode server."
+                  : "Connect an Anthropic API key to OpenCode for Claude models."}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -654,9 +670,10 @@ export function SettingsView({
               <Wordmark />
               <p className="text-[11px] leading-relaxed text-muted-foreground">
                 Built with Next.js and shadcn/ui. This project is an independent web
-                client and is not affiliated with Anomaly. It talks only to the
-                OpenCode HTTP API configured through{" "}
-                <span className="font-mono">OPENCODE_SERVER_URL</span>.
+                client and is not affiliated with Anomaly.{" "}
+                {serverMode === "per-user"
+                  ? "OCTANE starts a private OpenCode server for your account, so sessions and provider keys stay yours."
+                  : "It talks only to the OpenCode HTTP API configured through OPENCODE_SERVER_URL."}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" asChild>

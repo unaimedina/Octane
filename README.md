@@ -24,7 +24,7 @@ Requires Docker with Compose v2.
 
 ```bash
 cp .env.example .env
-# set AUTH_SECRET, AUTH_PASSWORD (or Discord), and OPENCODE_SERVER_PASSWORD
+# set AUTH_SECRET and AUTH_PASSWORD (or Discord)
 docker compose up -d --build
 ```
 
@@ -35,7 +35,6 @@ Minimum `.env`:
 ```dotenv
 AUTH_SECRET=<32+ random characters>
 AUTH_PASSWORD=<a long password>
-OPENCODE_SERVER_PASSWORD=<upstream server password>
 WORKSPACE_PATH=./workspace
 ```
 
@@ -45,15 +44,14 @@ Generate `AUTH_SECRET` with `openssl rand -base64 32` or:
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
-Compose starts three services:
+Compose starts two services:
 
 | Service | Purpose |
 | --- | --- |
-| `opencode` | `ghcr.io/anomalyco/opencode` pinned to a tested tag, in `serve` mode with the workspace at `/workspace`. |
-| `web` | OCTANE: authenticates requests and proxies them to OpenCode. |
-| `skills-init` | One-shot job that makes the shared skills volume writable by the web container. |
+| `web` | OCTANE: authenticates requests, starts one private OpenCode server per user, and proxies requests to it. |
+| `skills-init` | One-shot job that prepares the shared skills and per-user data volumes for the web container. |
 
-The image tag is pinned deliberately. Update it only after checking the release notes. To use an existing server, point the `web` service's `OPENCODE_SERVER_URL` at it and remove the `opencode` service and its `depends_on` entry.
+The web image embeds the `ghcr.io/anomalyco/opencode` binary pinned to a tested tag. Update it deliberately. To use one external server for everybody instead, set `OPENCODE_SERVER_MODE=shared` and point `OPENCODE_SERVER_URL` at it.
 
 ## What you get
 
@@ -61,10 +59,10 @@ The image tag is pinned deliberately. Update it only after checking the release 
 - **A real workspace** — searchable sessions, a project file browser, GitHub-flavoured Markdown with copyable code blocks, changed-file review with `@pierre/diffs`, lazy diffs, copy-patch, and a root folder picker for new sessions.
 - **Tasks, shell and slash commands** — run pending tasks from the context panel, switch to `!` shell mode for terminal cards with exit codes and output, and insert the server's slash commands.
 - **Context without a turn** — drop docs, logs, images, PDFs or another chat into a conversation as context, and attach skills to any prompt.
-- **Models and providers** — choose a model per session or set a default, pick an agent, and connect an OpenCode Console account or an Anthropic API key through OpenCode.
+- **Models and providers, per user** — choose a model per session or set a default, pick an agent, and connect OpenCode Console or an Anthropic API key. Each signed-in user gets a private OpenCode server, so sessions and provider credentials never cross accounts.
 - **Usage, locally estimated** — monthly cost, tokens and sessions, a model breakdown, optional budgets and a month-end forecast at `/usage`.
 - **Auth built in** — password (scrypt) and/or Discord OAuth gated by a server role, with signed HttpOnly sessions, CSRF tokens and login rate limits.
-- **Docker-first** — a standalone non-root image, health check, Compose stack for OpenCode + OCTANE, shared skills volume and a consistent git config.
+- **Docker-first** — a standalone non-root image with the OpenCode CLI embedded, a health check, Compose stack for OCTANE, shared skills volume and a consistent git config.
 
 ## Architecture
 
@@ -72,9 +70,11 @@ The image tag is pinned deliberately. Update it only after checking the release 
   <img src="./assets/readme/workflow.svg" width="100%" alt="OCTANE request path: browser to Next.js BFF to OpenCode server to workspace and models, with credentials kept server-side">
 </p>
 
-The browser never talks to OpenCode directly. Data requests go through same-origin `/api/*` handlers, and pages render on the server behind `requireSession`. Mutations verify the session and CSRF; both paths call OpenCode with credentials from the environment. The browser never receives `OPENCODE_SERVER_PASSWORD` or a provider token.
+The browser never talks to OpenCode directly. Data requests go through same-origin `/api/*` handlers, and pages render on the server behind `requireSession`. Mutations verify the session and CSRF. Every upstream call is routed to the signed-in user's own OpenCode server by `src/lib/tenant.ts`; the browser never receives the per-user Basic-auth password or a provider token.
 
-`src/lib/oc-server.ts` probes `/api/info` for v2 and falls back to `/global/health` for v1, then normalizes sessions, messages, tools, approvals, files and SSE into one UI model. `src/lib/event-proxy.ts` handles the stream, and `src/lib/session-service.ts` is the OpenCode-only facade used by pages and route handlers.
+In the default `per-user` mode, `src/lib/user-servers.ts` starts `opencode serve` on demand with an isolated `HOME`/XDG directory per user, a random localhost port and a random Basic-auth password. Session metadata, Anthropic keys and OpenCode Console logins live in that directory. Data survives web restarts and is reused from `server.json`. `src/lib/oc-server.ts` probes `/api/info` for v2 and falls back to `/global/health` for v1, then normalizes sessions, messages, tools, approvals, files and SSE into one UI model. `src/lib/event-proxy.ts` handles the stream, and `src/lib/session-service.ts` is the OpenCode-only facade used by pages and route handlers.
+
+Set `OPENCODE_SERVER_MODE=shared` to use one external server for every user instead. In that mode sessions and provider keys are shared, as in older OCTANE releases.
 
 Subagents are matched to their child session by `parentID` and rendered as live cards. `Edit`, `Write` and `MultiEdit` calls become before/after diffs through `@pierre/diffs`; the raw JSON stays available under **Raw input**.
 
@@ -94,21 +94,28 @@ Subagents are matched to their child session by `parentID` and rendered as live 
 | `DISCORD_GUILD_ID` | Discord | — | Server where the role is checked. |
 | `DISCORD_ROLE_ID` | Discord | — | Role required to sign in. |
 | `DISCORD_REDIRECT_URI` | no | auto | Exact callback URL. Defaults to `<public-origin>/api/auth/discord/callback`. |
-| `OPENCODE_SERVER_URL` | yes | `http://127.0.0.1:4096` | Upstream OpenCode server. |
-| `OPENCODE_SERVER_USERNAME` | no | `opencode` | Basic-auth username for the upstream. |
-| `OPENCODE_SERVER_PASSWORD` | Compose | — | Basic-auth password for the upstream server. Required by Compose; optional for a local server without basic auth. |
+| `OPENCODE_SERVER_MODE` | no | `per-user` | `per-user` gives every signed-in user a private OpenCode server. `shared` uses one `OPENCODE_SERVER_URL` for everybody, including its sessions and credentials. |
+| `OPENCODE_BIN` | per-user | `opencode` | CLI used to start per-user servers. Use an absolute path when it is not on `PATH`. |
+| `OPENCODE_USERS_DIR` | per-user | `~/.local/share/octane/users` | Base folder for per-user OpenCode data. Each user gets a hashed subfolder with sessions, credentials and logs. |
+| `OPENCODE_WORKSPACE` | no | current folder | Working directory used by per-user servers. Compose sets `/workspace`. |
+| `OPENCODE_START_TIMEOUT_MS` | no | `45000` | How long to wait for a new per-user server to answer `/api/info`. |
+| `OPENCODE_SERVER_URL` | shared | `http://127.0.0.1:4096` | Upstream OpenCode server used only in `shared` mode. |
+| `OPENCODE_SERVER_USERNAME` | no | `opencode` | Basic-auth username for the shared upstream. |
+| `OPENCODE_SERVER_PASSWORD` | shared | — | Basic-auth password for the shared upstream. Per-user servers generate their own random passwords. |
 | `OPENCODE_API_FLAVOR` | no | auto | Force `v1` or `v2` instead of probing. |
-| `ANTHROPIC_API_KEY` | no | — | Passed to the OpenCode container; alternative to connecting the key in Settings. |
+| `ANTHROPIC_API_KEY` | no | — | Shared-mode convenience only. Per-user servers do not inherit it; each user connects their own key in Settings. |
 | `USAGE_ROLLING_BUDGET_USD` | no | — | Optional rolling 24h budget for the local Usage dashboard. |
 | `USAGE_WEEKLY_BUDGET_USD` | no | — | Optional rolling 7-day budget. |
 | `USAGE_MONTHLY_BUDGET_USD` | no | — | Optional monthly budget; enables percentages and the month-end forecast. |
 | `WEB_PORT` | no | `3000` | Host port published by Compose. |
-| `WORKSPACE_PATH` | no | `./workspace` | Host folder mounted at `/workspace` in both containers. |
+| `WORKSPACE_PATH` | no | `./workspace` | Host folder mounted at `/workspace` in the web container and its per-user OpenCode servers. |
 | `OPENCODE_SKILLS_DIR` | no | volume path | Where OCTANE writes installed skills. Compose sets it to the shared volume. |
 
-### Anthropic API key via OpenCode
+### Anthropic API key, per user
 
-Open **Settings → Anthropic API key** on a v2 server and paste a key, or set `ANTHROPIC_API_KEY` on the OpenCode server. The Settings card uses the OpenCode v2 integration API:
+Open **Settings → Anthropic API key** on a v2 server and paste a key. In the default `per-user` mode, the request is routed to the signed-in user's private OpenCode server and the key is stored in that user's data directory. Other users cannot see or use it.
+
+The Settings card uses the OpenCode v2 integration API:
 
 ```text
 GET  /api/integration
@@ -116,7 +123,11 @@ GET  /api/integration/anthropic
 POST /api/integration/anthropic/connect/key
 ```
 
-After connecting, OpenCode discovers Claude models and lists them in the model picker. The same card can disconnect the credential. The key is stored on the OpenCode server and is never sent back to the browser.
+After connecting, OpenCode discovers Claude models and lists them in the model picker. The same card can disconnect the credential. The key is stored on that user's OpenCode server and is never sent back to the browser.
+
+Each user can also connect their own OpenCode Console account from **Settings → OpenCode account**. Because every user has a separate OpenCode data directory, Console logins and Anthropic keys do not overlap.
+
+> Password sign-in is a single local identity: everyone who knows the password shares one OpenCode server. Use Discord sign-in when you need one isolated server per person.
 
 ### Usage estimates
 
@@ -124,19 +135,25 @@ The chat landing page and `/usage` aggregate the cost and token totals reported 
 
 ### Docker notes
 
-Both containers mount `WORKSPACE_PATH` at `/workspace`. OCTANE uses it for file tools and the folder picker.
+The web container mounts `WORKSPACE_PATH` at `/workspace` and shares it with every per-user OpenCode server it starts there. OCTANE uses it for file tools and the folder picker.
 
-Skills installed from Settings live in the shared `opencode-skills` volume: OCTANE writes to `/home/nextjs/.config/opencode/skills`, and the OpenCode container reads `/root/.config/opencode/skills`. The one-shot `skills-init` service gives the volume to UID `1001` before the other services start.
+Skills installed from Settings live in the shared `opencode-skills` volume: OCTANE writes to `/home/nextjs/.config/opencode/skills`, and each per-user server gets that folder linked into its own config directory. The one-shot `skills-init` service prepares both the skills and `opencode-users` volumes for UID `1001` before the web container starts.
 
-Compose mounts `docker/gitconfig` into both containers. It sets a git identity, `safe.directory = *`, rebase autostash and the `diff3` conflict style, which avoids the usual `dubious ownership` and `please commit/stash` prompts. For real conflicts, use the merge icon in the Changes tab to ask the agent to resolve them.
+Per-user sessions and provider credentials live in the `opencode-users` volume at `/home/nextjs/.local/share/octane/users`. Back it up if you want to keep sessions and connected keys across a full volume reset. Removing it signs every user out of OpenCode Console and deletes their sessions and Anthropic keys.
+
+> Upgrading from a shared server: sessions and credentials in the old `opencode-data` volume are not copied into per-user directories. Users start with an empty session list and reconnect their Anthropic key or OpenCode Console account in Settings.
+
+Each user who signs in gets a long-lived OpenCode process (reused across web restarts through `server.json`). Plan container memory for the number of active users; the processes are started on first use, not at boot.
+
+Compose mounts `docker/gitconfig` into the web container. It sets a git identity, `safe.directory = *`, rebase autostash and the `diff3` conflict style, which avoids the usual `dubious ownership` and `please commit/stash` prompts. For real conflicts, use the merge icon in the Changes tab to ask the agent to resolve them.
 
 Compose defaults `AUTH_COOKIE_SECURE` to `false`. If Traefik terminates TLS, set `AUTH_COOKIE_SECURE=true` in `.env` so session cookies carry the `Secure` flag.
 
-Root folders chosen in the New chat screen must be absolute paths that exist **inside both containers**, such as `/workspace` or `/workspace/project` — not paths on the host. If a saved folder stops working, click **Reset** next to the folder path to return to OpenCode's default location.
+Root folders chosen in the New chat screen must be absolute paths that exist **inside the web container**, such as `/workspace` or `/workspace/project` — not paths on the host. If a saved folder stops working, click **Reset** next to the folder path to return to OpenCode's default location.
 
 ## Local development
 
-Requires Node.js 22.9+ (the `start` script uses `--env-file-if-exists`; the Docker image already runs Node 22).
+Requires Node.js 22.9+ (the `start` script uses `--env-file-if-exists`; the Docker image already runs Node 22) and the OpenCode CLI on `PATH` (v2.2.x is what Compose embeds).
 
 ```bash
 npm install
@@ -149,17 +166,18 @@ Minimum `.env.local`:
 ```dotenv
 AUTH_SECRET=dev-secret-at-least-32-characters-long
 AUTH_PASSWORD=dev
-OPENCODE_SERVER_URL=http://127.0.0.1:4096
-OPENCODE_SERVER_PASSWORD=optional-upstream-password
+OPENCODE_SERVER_MODE=per-user
+OPENCODE_BIN=opencode
+OPENCODE_USERS_DIR=./data/users
 ```
 
-Start the OpenCode server separately:
+OCTANE starts one `opencode serve` process per signed-in user on first use. There is no separate server to run. To use a single external server instead, set `OPENCODE_SERVER_MODE=shared`, `OPENCODE_SERVER_URL=http://127.0.0.1:4096` and optionally `OPENCODE_SERVER_PASSWORD`, then start it yourself:
 
 ```bash
 OPENCODE_SERVER_PASSWORD=optional-upstream-password opencode serve --port 4096
 ```
 
-OCTANE talks to upstream through the server, so the OpenCode server can stay bound to localhost. To test Discord locally, register `http://localhost:3000/api/auth/discord/callback` as a redirect in the Discord application.
+To test Discord locally, register `http://localhost:3000/api/auth/discord/callback` as a redirect in the Discord application.
 
 ## Sign-in setup
 
@@ -201,6 +219,8 @@ Discord is enabled only when all five values are present; otherwise the login pa
 - **CSP** is `default-src 'self'` with the inline styles/scripts Next.js requires. There are no third-party scripts, analytics or external fonts at runtime.
 - **Reverse proxy** is recommended for TLS, payload limits and slow-connection protection. Forward `x-forwarded-proto` so cookies get the `Secure` flag automatically.
 - **Not a sandbox** — the agent can edit the mounted workspace and run tools. Run it in a container with a dedicated workspace; do not mount your home directory.
+- **Per-user isolation** — in the default mode each user's OpenCode server runs with its own `HOME`/XDG data directory, on `127.0.0.1` with a random Basic-auth password generated for that process. Sessions, Anthropic keys and OpenCode Console logins are stored in that directory. The shared workspace is still shared: users can read and edit the same files.
+- **Shared container boundary** — every per-user server runs as the same container user. The separation is logical, not a security sandbox: an agent with shell access could read another user's data directory or local server password. Use OCTANE with people you trust, or run one container per user if tenants are hostile.
 - **Upstream credentials** live only in the server process. Do not add `NEXT_PUBLIC_*` secrets.
 
 ## Useful commands
@@ -231,6 +251,8 @@ src/lib/auth.ts            password verification + JWT sessions + CSRF helpers
 src/lib/discord.ts         OAuth2 exchange + bot role check
 src/lib/harness.ts         OpenCode label helpers
 src/lib/session-service.ts OpenCode session facade
+src/lib/tenant.ts          per-request routing to the signed-in user's server
+src/lib/user-servers.ts    isolated OpenCode processes (spawn, reuse, logs)
 src/lib/integrations.ts    OpenCode `/connect` integrations (Anthropic key/OAuth)
 src/lib/oc-server.ts       v1/v2 upstream adapter
 src/lib/event-proxy.ts     v1 pass-through / v2 event translation

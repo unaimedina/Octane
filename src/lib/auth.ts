@@ -17,6 +17,8 @@ import {
 import { authSecret, authUsername, secureCookies } from "./env";
 
 export type SessionInfo = {
+  /** Stable identity: Discord user id, or the configured local username. */
+  subject: string;
   username: string;
   issuedAt: number;
   expiresAt: number;
@@ -139,6 +141,10 @@ export async function verifySessionToken(token: string | undefined): Promise<Ses
       algorithms: ["HS256"],
     });
     return {
+      subject:
+        typeof payload.sub === "string" && payload.sub
+          ? payload.sub
+          : authUsername(),
       username:
         typeof payload.name === "string" && payload.name
           ? payload.name

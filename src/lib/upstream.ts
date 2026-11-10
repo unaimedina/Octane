@@ -1,4 +1,6 @@
-import { serverAuthHeader, serverUrl } from "./env";
+import { perUserServers, serverAuthHeader, serverUrl, type ServerMode } from "./env";
+import { currentUpstream } from "./tenant";
+import { probeManagedRuntime } from "./user-servers";
 
 export type ApiFlavor = "v1" | "v2";
 
@@ -16,16 +18,19 @@ const DEFAULT_TIMEOUT = 20_000;
 
 let flavorCache: { flavor: ApiFlavor; at: number } | null = null;
 
+/** Shared endpoint. Per-user requests resolve their target in upstreamFetch. */
 export function upstreamBase(): string {
   return serverUrl();
 }
 
-export function upstreamHeaders(init?: HeadersInit): Headers {
+export function upstreamHeaders(
+  init?: HeadersInit,
+  auth = serverAuthHeader(),
+): Headers {
   const headers = new Headers(init);
   headers.delete("cookie");
   headers.delete("host");
   headers.delete("authorization");
-  const auth = serverAuthHeader();
   if (auth) headers.set("authorization", auth);
   return headers;
 }
@@ -36,13 +41,22 @@ export async function upstreamFetch(
 ): Promise<Response> {
   const { timeoutMs = DEFAULT_TIMEOUT, signal, ...rest } = init;
   const clean = path.startsWith("/") ? path : `/${path}`;
-  const url = `${upstreamBase()}${clean}`;
+  let target;
+  try {
+    target = await currentUpstream();
+  } catch (error) {
+    throw new UpstreamError(
+      error instanceof Error ? error.message : "OpenCode server unavailable.",
+      503,
+    );
+  }
+  const url = `${target.url}${clean}`;
   const timeout = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : null;
   const combined =
     signal && timeout ? AbortSignal.any([signal, timeout]) : (signal ?? timeout);
   return fetch(url, {
     ...rest,
-    headers: upstreamHeaders(rest.headers),
+    headers: upstreamHeaders(rest.headers, target.authHeader),
     cache: "no-store",
     signal: combined,
   });
@@ -120,6 +134,7 @@ export function resetFlavorCache(): void {
 }
 
 export type UpstreamProbe = {
+  mode: ServerMode;
   reachable: boolean;
   healthy: boolean;
   version: string | null;
@@ -129,6 +144,17 @@ export type UpstreamProbe = {
 
 /** Distinguish "server down" from "server rejected our Basic auth". */
 export async function probeUpstream(): Promise<UpstreamProbe> {
+  if (perUserServers()) {
+    const runtime = await probeManagedRuntime();
+    return {
+      mode: "per-user",
+      reachable: runtime.available,
+      healthy: runtime.available,
+      version: runtime.version,
+      unauthorized: false,
+      status: runtime.available ? 200 : null,
+    };
+  }
   try {
     const flavor = await apiFlavor();
     const response = await upstreamFetch(
@@ -137,6 +163,7 @@ export async function probeUpstream(): Promise<UpstreamProbe> {
     );
     if (response.status === 401 || response.status === 403) {
       return {
+        mode: "shared",
         reachable: true,
         healthy: false,
         version: null,
@@ -146,6 +173,7 @@ export async function probeUpstream(): Promise<UpstreamProbe> {
     }
     if (!response.ok) {
       return {
+        mode: "shared",
         reachable: true,
         healthy: false,
         version: null,
@@ -155,6 +183,7 @@ export async function probeUpstream(): Promise<UpstreamProbe> {
     }
     const data = (await response.json()) as { version?: string };
     return {
+      mode: "shared",
       reachable: true,
       healthy: true,
       version: data.version ?? (flavor === "v2" ? "2" : null),
@@ -163,6 +192,7 @@ export async function probeUpstream(): Promise<UpstreamProbe> {
     };
   } catch {
     return {
+      mode: "shared",
       reachable: false,
       healthy: false,
       version: null,

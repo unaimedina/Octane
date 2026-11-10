@@ -16,6 +16,7 @@ import { Wordmark } from "@/components/brand";
 type Health = {
   authConfigured: boolean;
   upstream: {
+    mode?: "shared" | "per-user";
     reachable: boolean;
     healthy: boolean;
     version: string | null;
@@ -113,10 +114,12 @@ export function LoginForm({
   }
 
   const online = health?.upstream.reachable && health.upstream.healthy;
+  const perUser = health?.upstream.mode === "per-user";
   const discordHref = `/api/auth/discord/start?next=${encodeURIComponent(next)}`;
   const bullets = [
     passwordEnabled ? "Password sign-in with rate limiting" : null,
     discordEnabled ? "Discord sign-in gated by a server role" : null,
+    perUser ? "A private OpenCode server and provider keys per user" : null,
     "Signed HttpOnly sessions, CSRF and rate limiting",
   ].filter(Boolean) as string[];
 
@@ -127,12 +130,14 @@ export function LoginForm({
 
   const serverStatus = health
     ? online
-      ? `OpenCode ${health.upstream.version ?? ""} online`
+      ? `OpenCode ${health.upstream.version ?? ""}${perUser ? " · per-user" : ""} online`
       : health.upstream.unauthorized
         ? "OpenCode rejected credentials"
-        : health.upstream.reachable
-          ? "OpenCode server not ready"
-          : "OpenCode server unreachable"
+        : perUser
+          ? "OpenCode runtime unavailable"
+          : health.upstream.reachable
+            ? "OpenCode server not ready"
+            : "OpenCode server unreachable"
     : "Checking server";
 
   return (
@@ -284,6 +289,17 @@ export function LoginForm({
                       The OpenCode server rejected the configured credentials. Check{" "}
                       <code className="font-mono text-xs">OPENCODE_SERVER_PASSWORD</code>{" "}
                       and restart the server with the same value.
+                    </span>
+                  </div>
+                ) : null}
+
+                {health?.upstream.mode === "per-user" && !online ? (
+                  <div className="flex items-start gap-2.5 rounded-[10px] border border-warning/30 bg-warning/8 px-3 py-2.5 text-[13px] text-warning">
+                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
+                    <span>
+                      The OpenCode CLI is not available. Install it or set{" "}
+                      <code className="font-mono text-xs">OPENCODE_BIN</code> to its
+                      path so each user can get a private server after signing in.
                     </span>
                   </div>
                 ) : null}

@@ -1,14 +1,19 @@
 # syntax=docker/dockerfile:1
 
+# ---- OpenCode CLI ------------------------------------------------------------
+# The web container starts one isolated server per signed-in user, so it needs
+# the same OpenCode binary the standalone container used to run.
+FROM ghcr.io/anomalyco/opencode:2.2.2 AS opencode
+
 # ---- Dependencies -----------------------------------------------------------
-FROM node:22-alpine AS deps
+FROM node:22-alpine3.24 AS deps
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- Build ------------------------------------------------------------------
-FROM node:22-alpine AS builder
+FROM node:22-alpine3.24 AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
@@ -24,7 +29,7 @@ RUN rm -rf "src/app/api/harness" "src/app/api/harnesses" "src/app/api/sessions/[
 RUN npm run build
 
 # ---- Runtime ----------------------------------------------------------------
-FROM node:22-alpine AS runner
+FROM node:22-alpine3.24 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
@@ -33,13 +38,17 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     HOME=/home/nextjs
 
-# Runtime tools used by the file browser, skills and git integration.
-RUN apk add --no-cache git bash ripgrep
+# Runtime tools used by the file browser, skills, git integration and the
+# per-user OpenCode servers started by the web process.
+RUN apk add --no-cache git bash ripgrep ca-certificates libgcc libstdc++
 
 RUN addgroup -S -g 1001 nodejs \
   && adduser -S -u 1001 -G nodejs nextjs \
-  && mkdir -p /home/nextjs/.config/opencode/skills \
+  && mkdir -p /home/nextjs/.config/opencode/skills /home/nextjs/.local/share/octane/users \
   && chown -R nextjs:nodejs /home/nextjs
+
+COPY --from=opencode /usr/local/bin/opencode /usr/local/bin/opencode
+RUN chmod 0755 /usr/local/bin/opencode
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

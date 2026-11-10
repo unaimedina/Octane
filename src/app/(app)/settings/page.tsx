@@ -2,7 +2,6 @@ import { SettingsView } from "@/components/settings/settings-view";
 import {
   discordConfigured,
   passwordConfigured,
-  serverDisplayUrl,
 } from "@/lib/env";
 import { getIntegration, integrationsSupported } from "@/lib/integrations";
 import {
@@ -13,6 +12,7 @@ import {
   getOpenCodeIntegration,
 } from "@/lib/oc-server";
 import { getHealth, getPathInfo, getProviders } from "@/lib/session-service";
+import { currentServerDisplay } from "@/lib/tenant";
 import { SESSION_TTL_SECONDS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -20,17 +20,27 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const [health, pathInfo, config, providers, mcp, lsp, formatter, integration] =
-    await Promise.all([
-      getHealth(),
-      getPathInfo(),
-      getConfig(),
-      getProviders(),
-      getMcpStatus(),
-      getLspStatus(),
-      getFormatterStatus(),
-      getOpenCodeIntegration(),
-    ]);
+  const [
+    health,
+    pathInfo,
+    config,
+    providers,
+    mcp,
+    lsp,
+    formatter,
+    integration,
+    server,
+  ] = await Promise.all([
+    getHealth(),
+    getPathInfo(),
+    getConfig(),
+    getProviders(),
+    getMcpStatus(),
+    getLspStatus(),
+    getFormatterStatus(),
+    getOpenCodeIntegration(),
+    currentServerDisplay(),
+  ]);
 
   const [anthropicIntegration, integrationsAvailable] = await Promise.all([
     getIntegration("anthropic").catch(() => null),
@@ -80,7 +90,8 @@ export default async function SettingsPage() {
     <SettingsView
       health={health}
       pathInfo={pathInfo}
-      serverUrl={serverDisplayUrl()}
+      serverUrl={server.url}
+      serverMode={server.mode}
       providers={[...providerMap.values()].sort((a, b) => a.name.localeCompare(b.name))}
       config={safeConfig}
       mcp={mcp}
