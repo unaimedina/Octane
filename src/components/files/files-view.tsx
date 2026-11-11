@@ -59,10 +59,12 @@ export function FilesView({
   initialEntries,
   initialStatus,
   root,
+  hasRepo,
 }: {
   initialEntries: FileNode[];
   initialStatus: FileStatus[];
   root: string;
+  hasRepo: boolean;
 }) {
   const { subscribe } = useAppData();
   const [entries, setEntries] = React.useState(initialEntries);
@@ -248,14 +250,16 @@ export function FilesView({
               <TabsTrigger value="browse" className="flex-1 text-xs">
                 Browse
               </TabsTrigger>
-              <TabsTrigger value="changes" className="flex-1 gap-1.5 text-xs">
-                Changes
-                {status.length ? (
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {status.length}
-                  </span>
-                ) : null}
-              </TabsTrigger>
+              {hasRepo ? (
+                <TabsTrigger value="changes" className="flex-1 gap-1.5 text-xs">
+                  Changes
+                  {status.length ? (
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {status.length}
+                    </span>
+                  ) : null}
+                </TabsTrigger>
+              ) : null}
             </TabsList>
           </Tabs>
         </div>
@@ -488,13 +492,18 @@ export function FilesView({
             <div>
               <p className="text-sm font-medium">Select a file to inspect it</p>
               <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                Browse the project tree, search by name, or review uncommitted
-                changes. Files open read-only — edit them through an agent.
+                Browse the project tree or search by name.
+                {hasRepo
+                  ? " Review uncommitted changes if there are any."
+                  : ""}{" "}
+                Files open read-only — edit them through an agent.
               </p>
             </div>
-            <Badge variant="outline" className="font-mono text-[10px]">
-              {status.length} changed file{status.length === 1 ? "" : "s"}
-            </Badge>
+            {hasRepo ? (
+              <Badge variant="outline" className="font-mono text-[10px]">
+                {status.length} changed file{status.length === 1 ? "" : "s"}
+              </Badge>
+            ) : null}
           </div>
         )}
       </div>

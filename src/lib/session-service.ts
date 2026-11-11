@@ -92,6 +92,10 @@ export async function getPathInfo(): Promise<Path | null> {
   return oc.getPathInfo();
 }
 
+export async function hasRepository(directory?: string): Promise<boolean> {
+  return oc.hasRepository(directory);
+}
+
 export async function getHealth(): Promise<HealthInfo | null> {
   return oc.getHealth();
 }

@@ -46,6 +46,7 @@ export type OutgoingMessage = {
   text: string;
   attachments: Array<{ mime: string; filename: string; url: string }>;
   skills: string[];
+  agent?: string;
 };
 
 export const Composer = React.memo(function Composer({
@@ -89,12 +90,20 @@ export const Composer = React.memo(function Composer({
   const [sending, setSending] = React.useState(false);
   const [aborting, setAborting] = React.useState(false);
 
-  React.useEffect(() => {
+  const resetHeight = React.useCallback(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+    if (!textarea.value) {
+      textarea.style.height = "";
+      return;
+    }
     textarea.style.height = "0px";
     textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
-  }, [draft]);
+  }, []);
+
+  React.useEffect(() => {
+    resetHeight();
+  }, [draft, resetHeight]);
 
   const primaryAgents = React.useMemo(
     () => agents.filter((item) => item.mode !== "subagent"),
@@ -142,14 +151,23 @@ export const Composer = React.memo(function Composer({
     if (sending || busy) return;
     const text = draft.trim();
     if (!text && attachments.length === 0) return;
+    const payload = { text, attachments, skills: selectedSkills };
     setSending(true);
+    onDraftChange("");
+    setAttachments([]);
+    setSelectedSkills([]);
+    requestAnimationFrame(resetHeight);
     try {
-      await onSend({ text, attachments, skills: selectedSkills });
-      onDraftChange("");
-      setAttachments([]);
-      setSelectedSkills([]);
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      await onSend(payload);
+      requestAnimationFrame(() => {
+        resetHeight();
+        textareaRef.current?.focus();
+      });
     } catch (error) {
+      onDraftChange(payload.text);
+      setAttachments(payload.attachments);
+      setSelectedSkills(payload.skills);
+      requestAnimationFrame(resetHeight);
       toast.error("Message failed", {
         description: error instanceof Error ? error.message : "Unknown error",
       });

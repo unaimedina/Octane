@@ -152,6 +152,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   todos,
   diff,
   className,
+  hasRepo,
   onRunTask,
   onResolveConflicts,
   busy,
@@ -159,6 +160,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   todos: Todo[];
   diff: FileDiff[];
   className?: string;
+  hasRepo: boolean;
   onRunTask?: (todo: Todo) => void;
   onResolveConflicts?: () => void;
   busy?: boolean;
@@ -166,10 +168,23 @@ export const ContextPanel = React.memo(function ContextPanel({
   const additions = diff.reduce((sum, file) => sum + file.additions, 0);
   const deletions = diff.reduce((sum, file) => sum + file.deletions, 0);
   const completed = todos.filter((todo) => todo.status === "completed").length;
+  const [selectedTab, setSelectedTab] = React.useState<
+    "tasks" | "changes" | null
+  >(null);
+  const tab: "tasks" | "changes" =
+    !hasRepo && selectedTab === "changes"
+      ? "tasks"
+      : (selectedTab ?? (todos.length > 0 || !hasRepo ? "tasks" : "changes"));
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col bg-muted/15", className)}>
-      <Tabs defaultValue={todos.length > 0 ? "tasks" : "changes"} className="flex min-h-0 flex-1 flex-col gap-0">
+      <Tabs
+        value={tab}
+        onValueChange={(value) =>
+          setSelectedTab(value as "tasks" | "changes")
+        }
+        className="flex min-h-0 flex-1 flex-col gap-0"
+      >
         <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-2.5">
           <TabsList className="min-w-0 flex-1">
             <TabsTrigger value="tasks" className="flex-1 gap-1.5 text-xs">
@@ -179,15 +194,17 @@ export const ContextPanel = React.memo(function ContextPanel({
                 {todos.length ? `${completed}/${todos.length}` : "0"}
               </span>
             </TabsTrigger>
-            <TabsTrigger value="changes" className="flex-1 gap-1.5 text-xs">
-              <GitCompareArrows className="size-3.5" />
-              Changes
-              <span className="font-mono text-[10px] text-muted-foreground">
-                {diff.length || "0"}
-              </span>
-            </TabsTrigger>
+            {hasRepo ? (
+              <TabsTrigger value="changes" className="flex-1 gap-1.5 text-xs">
+                <GitCompareArrows className="size-3.5" />
+                Changes
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {diff.length || "0"}
+                </span>
+              </TabsTrigger>
+            ) : null}
           </TabsList>
-          {onResolveConflicts ? (
+          {hasRepo && onResolveConflicts ? (
             <Button
               variant="ghost"
               size="icon-xs"
@@ -207,8 +224,8 @@ export const ContextPanel = React.memo(function ContextPanel({
               <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
                 <CircleDot className="size-6 text-muted-foreground/40" />
                 <p className="text-xs text-muted-foreground">
-                  No tasks yet. The agent will publish a plan here when it starts
-                  working.
+                  No tasks yet. Ask the plan agent for a plan and it will appear
+                  here as steps you can run.
                 </p>
               </div>
             ) : (
@@ -221,35 +238,37 @@ export const ContextPanel = React.memo(function ContextPanel({
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="changes" className="min-h-0 flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
-            {diff.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
-                <GitCompareArrows className="size-6 text-muted-foreground/40" />
-                <p className="text-xs text-muted-foreground">
-                  No file changes in this session yet.
-                </p>
-              </div>
-            ) : (
-              <div className="p-2">
-                <div className="mb-2 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
-                  <span className="font-mono uppercase tracking-[0.14em]">
-                    {diff.length} file{diff.length === 1 ? "" : "s"}
-                  </span>
-                  <span className="font-mono">
-                    <span className="text-success dark:text-success">+{additions}</span>{" "}
-                    <span className="text-destructive dark:text-destructive">-{deletions}</span>
-                  </span>
+        {hasRepo ? (
+          <TabsContent value="changes" className="min-h-0 flex-1 overflow-hidden">
+            <ScrollArea className="h-full">
+              {diff.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+                  <GitCompareArrows className="size-6 text-muted-foreground/40" />
+                  <p className="text-xs text-muted-foreground">
+                    No file changes in this session yet.
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  {diff.map((file) => (
-                    <FileDiffDetails key={file.file} file={file} />
-                  ))}
+              ) : (
+                <div className="p-2">
+                  <div className="mb-2 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
+                    <span className="font-mono uppercase tracking-[0.14em]">
+                      {diff.length} file{diff.length === 1 ? "" : "s"}
+                    </span>
+                    <span className="font-mono">
+                      <span className="text-success dark:text-success">+{additions}</span>{" "}
+                      <span className="text-destructive dark:text-destructive">-{deletions}</span>
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {diff.map((file) => (
+                      <FileDiffDetails key={file.file} file={file} />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-          </ScrollArea>
-        </TabsContent>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );
