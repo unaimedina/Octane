@@ -11,6 +11,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
@@ -54,9 +55,11 @@ function sortProjects(projects: Project[]): Project[] {
 export function ProjectsView({
   initialProjects,
   github,
+  storageEphemeral = false,
 }: {
   initialProjects: Project[];
   github: GithubStatus;
+  storageEphemeral?: boolean;
 }) {
   const router = useRouter();
   const { sessions, pathInfo } = useAppData();
@@ -164,6 +167,26 @@ export function ProjectsView({
             <Plus className="size-4" /> New project
           </Button>
         </div>
+
+        {storageEphemeral ? (
+          <Card className="mb-5 border-destructive/50 bg-destructive/5" role="alert">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-sm">Projects are not being saved permanently</CardTitle>
+                  <CardDescription className="mt-1 text-xs">
+                    The server stores projects, tasks and GitHub connections inside the
+                    container, not on a volume. They will be lost the next time the
+                    container is recreated, for example after pulling a new image. Ask
+                    your administrator to mount a volume at the OCTANE data folder
+                    (see README › Docker notes).
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        ) : null}
 
         <Card className="mb-5">
           <CardHeader>
