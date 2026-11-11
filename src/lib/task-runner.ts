@@ -158,11 +158,6 @@ export async function reconcileTasks(
       }
       continue;
     }
-    if (run.mode === "worker" && now - run.startedAt > WORKER_TIMEOUT_MS) {
-      await abortSession(run.sessionID).catch(() => undefined);
-      decisions.push({ ...base, status: "pending", outcome: "error", summary: "Timed out." });
-      continue;
-    }
     live.push(task);
   }
 
@@ -170,7 +165,21 @@ export async function reconcileTasks(
   for (const task of live) {
     const run = task.run as TaskRun;
     const status = statuses[run.sessionID];
-    if (status && status.type !== "idle") continue;
+    if (status && status.type !== "idle") {
+      // A worker still busy after the time limit is stopped.
+      if (run.mode === "worker" && now - run.startedAt > WORKER_TIMEOUT_MS) {
+        await abortSession(run.sessionID).catch(() => undefined);
+        decisions.push({
+          taskID: task.id,
+          startedAt: run.startedAt,
+          sessionID: run.sessionID,
+          status: "pending",
+          outcome: "error",
+          summary: "Timed out.",
+        });
+      }
+      continue;
+    }
     try {
       const decision = await decide(task, run);
       if (decision) decisions.push(decision);
