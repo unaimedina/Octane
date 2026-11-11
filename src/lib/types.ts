@@ -212,8 +212,31 @@ export type ServerStatus = {
 /* Session TODO tasks                                                          */
 /* -------------------------------------------------------------------------- */
 
-export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+export type TaskStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "blocked"
+  | "cancelled";
 export type TaskPriority = "high" | "medium" | "low";
+
+export type TaskRunOutcome =
+  | "done"
+  | "unverified"
+  | "blocked"
+  | "error"
+  | "aborted";
+
+export type TaskRun = {
+  mode: "session" | "worker";
+  /** OpenCode session the prompt was sent to. */
+  sessionID: string;
+  startedAt: number;
+  endedAt?: number;
+  outcome?: TaskRunOutcome;
+  /** At most 500 characters, from the TASK_RESULT line or the error. */
+  summary?: string;
+};
 
 export type Task = {
   id: string; // "tsk_" + random base64url
@@ -229,9 +252,14 @@ export type Task = {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
+  /** Ids of tasks in the same session that must be completed first. */
+  dependsOn: string[];
+  run?: TaskRun;
+  source?: { kind: "plan-file"; ref: string; path: string };
 };
 
 export type TaskInput = {
+  dependsOn?: string[];
   title: string;
   description?: string;
   prompt?: string;

@@ -185,20 +185,6 @@ function eventSessionId(event: Event): string | undefined {
   return undefined;
 }
 
-function buildTaskRunText(task: Task): string {
-  const title = task.title.trim();
-  const definition = task.description.trim();
-  const prompt = task.prompt.trim() || definition || title;
-  return [
-    `Task: ${title}`,
-    definition && definition !== title ? `Definition:\n${definition}` : "",
-    `Instructions:\n${prompt}`,
-    "Work only on this task and report what you changed.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}
-
 const ReasoningBlock = React.memo(function ReasoningBlock({
   text,
   duration,
@@ -625,7 +611,7 @@ export function ChatView({
   const flushTimer = React.useRef<number | null>(null);
   const earlierScrollHeight = React.useRef<number | null>(null);
   const restoredModel = React.useRef(false);
-  const runningTaskRef = React.useRef<string | null>(null);
+  const taskRefreshTimer = React.useRef<number | null>(null);
 
   const createTask = React.useCallback(
     async (input: TaskInput) => {
@@ -693,26 +679,32 @@ export function ChatView({
     }
   }, [pendingPlanSteps, session.id]);
 
-  const finishRunningTask = React.useCallback(() => {
-    const taskId = runningTaskRef.current;
-    if (!taskId) return;
-    runningTaskRef.current = null;
-    void updateTask(taskId, { status: "completed" }).catch((error: unknown) => {
-      toast.error("Could not mark the task complete", {
-        description: error instanceof Error ? error.message : undefined,
-      });
-    });
-  }, [updateTask]);
+  /** Reload tasks from the server, which settles finished runs. Debounced. */
+  const refreshTasks = React.useCallback(() => {
+    if (taskRefreshTimer.current) window.clearTimeout(taskRefreshTimer.current);
+    taskRefreshTimer.current = window.setTimeout(() => {
+      taskRefreshTimer.current = null;
+      void apiJson<Task[] | { tasks: Task[] }>(
+        `/sessions/${encodeURIComponent(session.id)}/tasks`,
+      )
+        .then((result) =>
+          setTasks(Array.isArray(result) ? result : result.tasks),
+        )
+        .catch(() => undefined);
+    }, 500);
+  }, [session.id]);
 
-  const resetRunningTask = React.useCallback(
-    (status: "pending" | "cancelled" = "pending") => {
-      const taskId = runningTaskRef.current;
-      if (!taskId) return;
-      runningTaskRef.current = null;
-      void updateTask(taskId, { status }).catch(() => undefined);
-    },
-    [updateTask],
+  // The page renders tasks straight from the store. If a run was in flight
+  // when the tab was closed, ask the server to settle it now.
+  const hadRunningTask = React.useRef(
+    initialTasks.some((task) => task.status === "in_progress"),
   );
+  React.useEffect(() => {
+    if (hadRunningTask.current) {
+      hadRunningTask.current = false;
+      refreshTasks();
+    }
+  }, [refreshTasks]);
 
   const status =
     statuses[backendSessionID] ??
@@ -1002,20 +994,20 @@ export function ChatView({
             if (event.properties.status.type === "idle") {
               flushPending();
               setWorking(false);
-              finishRunningTask();
+              refreshTasks();
             }
             break;
           case "session.idle":
             flushPending();
             setWorking(false);
             scheduleRefresh();
-            finishRunningTask();
+            refreshTasks();
             break;
           case "session.compacted":
             scheduleRefresh();
             break;
           case "session.error":
-            resetRunningTask("pending");
+            refreshTasks();
             toast.error("Session error", {
               description: errorLabel(event.properties.error) ?? undefined,
             });
@@ -1035,8 +1027,7 @@ export function ChatView({
       scheduleRefresh,
       flushPending,
       queueFlush,
-      finishRunningTask,
-      resetRunningTask,
+      refreshTasks,
     ],
   );
 
@@ -1232,13 +1223,13 @@ export function ChatView({
   );
 
   const handleAbort = React.useCallback(async () => {
-    resetRunningTask("pending");
     await apiJson(`/sessions/${encodeURIComponent(session.id)}/abort`, {
       method: "POST",
     });
     setWorking(false);
     toast.success("Stopped");
-  }, [resetRunningTask, session.id]);
+    refreshTasks();
+  }, [refreshTasks, session.id]);
 
   const openContextDialog = React.useCallback(() => {
     setContextDialogOpen(true);
@@ -1259,36 +1250,54 @@ export function ChatView({
         toast.error("Wait for the current turn to finish");
         return;
       }
-      const previousStatus = task.status;
-      try {
-        await updateTask(task.id, { status: "in_progress" });
-      } catch (error) {
-        toast.error("Could not start the task", {
-          description: error instanceof Error ? error.message : undefined,
-        });
-        return;
-      }
-
-      runningTaskRef.current = task.id;
       setAgent(buildAgent);
       try {
-        await handleSend({
-          text: buildTaskRunText(task),
-          attachments: [],
-          skills: [],
-          agent: buildAgent,
-        });
-      } catch (error) {
-        runningTaskRef.current = null;
-        await updateTask(task.id, { status: previousStatus }).catch(
-          () => undefined,
+        const result = await apiJson<{ task: Task }>(
+          `/sessions/${encodeURIComponent(session.id)}/tasks/${encodeURIComponent(task.id)}/run`,
+          {
+            method: "POST",
+            ...jsonBody({
+              agent: buildAgent,
+              model: model
+                ? { providerID: model.providerID, modelID: model.modelID }
+                : undefined,
+            }),
+          },
         );
+        setTasks((current) =>
+          current.map((item) => (item.id === result.task.id ? result.task : item)),
+        );
+        scheduleRefresh();
+      } catch (error) {
         toast.error("Could not start the task", {
           description: error instanceof Error ? error.message : undefined,
         });
+        refreshTasks();
       }
     },
-    [busy, buildAgent, handleSend, updateTask],
+    [busy, buildAgent, model, refreshTasks, scheduleRefresh, session.id],
+  );
+
+  const handleStopTask = React.useCallback(
+    async (task: Task) => {
+      try {
+        const result = await apiJson<{ task: Task }>(
+          `/sessions/${encodeURIComponent(session.id)}/tasks/${encodeURIComponent(task.id)}/stop`,
+          { method: "POST" },
+        );
+        setTasks((current) =>
+          current.map((item) => (item.id === result.task.id ? result.task : item)),
+        );
+        setWorking(false);
+        scheduleRefresh();
+      } catch (error) {
+        toast.error("Could not stop the task", {
+          description: error instanceof Error ? error.message : undefined,
+        });
+        refreshTasks();
+      }
+    },
+    [refreshTasks, scheduleRefresh, session.id],
   );
 
   const handleResolveConflicts = React.useCallback(() => {
@@ -1718,6 +1727,7 @@ export function ChatView({
             hasRepo={hasRepo}
             planSteps={pendingPlanSteps.length}
             onRunTask={handleRunTask}
+            onStopTask={handleStopTask}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
@@ -1737,6 +1747,7 @@ export function ChatView({
             hasRepo={hasRepo}
             planSteps={pendingPlanSteps.length}
             onRunTask={handleRunTask}
+            onStopTask={handleStopTask}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
