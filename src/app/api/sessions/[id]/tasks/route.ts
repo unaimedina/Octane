@@ -5,6 +5,7 @@ import { reconcileTasks } from "@/lib/task-runner";
 import {
   createTask,
   getRunner,
+  listWorkers,
   TaskConflictError,
   TaskNotFoundError,
   TaskValidationError,
@@ -39,7 +40,8 @@ export async function GET(
     const runner = await getRunner(auth.session.subject, id);
     // Re-arm the auto-run ticker after a server restart.
     if (runner.autoRun) ensureAutoRun(auth.session, id);
-    return noStoreJson({ tasks, runner });
+    const workers = await listWorkers(auth.session.subject, id);
+    return noStoreJson({ tasks, runner, workers });
   } catch (error) {
     return taskFailure(error);
   }

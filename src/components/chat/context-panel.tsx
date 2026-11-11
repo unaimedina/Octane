@@ -79,6 +79,7 @@ function TaskRow({
   onRun,
   onRunWorker,
   onStop,
+  onOpenWorker,
   onEdit,
   onDelete,
   onStatus,
@@ -91,6 +92,7 @@ function TaskRow({
   onRun?: (task: Task) => void;
   onRunWorker?: (task: Task) => void;
   onStop?: (task: Task) => void;
+  onOpenWorker?: (sessionID: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   onStatus: (task: Task, status: TaskStatus) => void;
@@ -221,7 +223,17 @@ function TaskRow({
             ) : null}
           </div>
         ) : null}
-        {workerID ? (
+        {workerID && onOpenWorker ? (
+          <button
+            type="button"
+            onClick={() => onOpenWorker(workerID)}
+            className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] text-info hover:underline"
+            title={`Worker session ${workerID}`}
+          >
+            <span className="min-w-0 truncate">Open worker</span>
+            <ExternalLink className="size-2.5 shrink-0" />
+          </button>
+        ) : workerID ? (
           <Link
             href={`/chat/${encodeURIComponent(workerID)}`}
             className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] text-info hover:underline"
@@ -532,6 +544,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   onRunTask,
   onRunTaskInWorker,
   onStopTask,
+  onOpenWorker,
   onCreateTask,
   onUpdateTask,
   onDeleteTask,
@@ -555,6 +568,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   planFiles?: { count: number; dir: string };
   onRunTask?: (task: Task) => void;
   onStopTask?: (task: Task) => void;
+  onOpenWorker?: (sessionID: string) => void;
   onCreateTask?: (input: TaskInput) => Promise<unknown>;
   onUpdateTask?: (id: string, input: Partial<TaskInput>) => Promise<unknown>;
   onDeleteTask?: (id: string) => Promise<void>;
@@ -843,6 +857,7 @@ export const ContextPanel = React.memo(function ContextPanel({
                       onRun={onRunTask}
                       onRunWorker={onRunTaskInWorker}
                       onStop={onStopTask}
+                      onOpenWorker={onOpenWorker}
                       onEdit={openEdit}
                       onDelete={setDeleteTarget}
                       onStatus={handleStatus}
