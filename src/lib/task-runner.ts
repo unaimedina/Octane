@@ -63,6 +63,9 @@ async function decide(task: Task, run: TaskRun): Promise<Decision | null> {
     };
   }
 
+  // Still being generated (statuses may have failed open); re-check on the next load.
+  if (info.role === "assistant" && !info.time.completed) return null;
+
   const text = last.parts
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
