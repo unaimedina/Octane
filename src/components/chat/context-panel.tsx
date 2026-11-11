@@ -81,7 +81,7 @@ function TaskRow({
     task.prompt.trim() !== task.description.trim();
 
   return (
-    <li className="flex items-start gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40">
+    <li className="flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40">
       <button
         type="button"
         onClick={toggleStatus}
@@ -98,7 +98,7 @@ function TaskRow({
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "line-clamp-2 text-[13px] leading-snug",
+            "line-clamp-2 break-words text-[13px] leading-snug",
             (task.status === "completed" || task.status === "cancelled") &&
               "text-muted-foreground line-through",
           )}
@@ -106,14 +106,14 @@ function TaskRow({
           {task.title}
         </div>
         {task.description ? (
-          <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 line-clamp-2 break-words whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
             {task.description}
           </p>
         ) : null}
         {showPrompt ? (
-          <p className="mt-1 flex items-start gap-1 line-clamp-1 text-[10px] leading-relaxed text-muted-foreground/70">
+          <p className="mt-1 flex min-w-0 items-start gap-1 text-[10px] leading-relaxed text-muted-foreground/70">
             <MessageSquare className="mt-0.5 size-2.5 shrink-0" />
-            <span className="line-clamp-1">{task.prompt}</span>
+            <span className="min-w-0 truncate">{task.prompt}</span>
           </p>
         ) : null}
         <div className="mt-1 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
@@ -394,7 +394,7 @@ export const ContextPanel = React.memo(function ContextPanel({
         </div>
 
         <TabsContent value="tasks" className="min-h-0 flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
+          <ScrollArea className="h-full [&_[data-slot=scroll-area-viewport]>div]:!block">
             {tasks.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
                 <CircleDot className="size-6 text-muted-foreground/40" />
@@ -444,7 +444,7 @@ export const ContextPanel = React.memo(function ContextPanel({
                     </Button>
                   </div>
                 ) : null}
-                <ul className="space-y-0.5 p-2">
+                <ul className="w-full space-y-0.5 p-2">
                   {tasks.map((task) => (
                     <TaskRow
                       key={task.id}
@@ -464,7 +464,7 @@ export const ContextPanel = React.memo(function ContextPanel({
 
         {hasRepo ? (
           <TabsContent value="changes" className="min-h-0 flex-1 overflow-hidden">
-            <ScrollArea className="h-full">
+            <ScrollArea className="h-full [&_[data-slot=scroll-area-viewport]>div]:!block">
               {diff.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
                   <GitCompareArrows className="size-6 text-muted-foreground/40" />
