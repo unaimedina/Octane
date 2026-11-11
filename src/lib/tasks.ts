@@ -357,14 +357,16 @@ export async function deleteTask(
   subject: string,
   sessionID: string,
   taskID: string,
-): Promise<void> {
-  await withStoreLock(lockKey(subject, sessionID), async () => {
+): Promise<Task | null> {
+  return withStoreLock(lockKey(subject, sessionID), async () => {
     const store = await readStore(subject, sessionID);
+    const removed = store.tasks.find((task) => task.id === taskID) ?? null;
     store.tasks = removeDependency(
       store.tasks.filter((task) => task.id !== taskID),
       taskID,
     );
     await writeStore(subject, sessionID, store);
+    return removed;
   });
 }
 

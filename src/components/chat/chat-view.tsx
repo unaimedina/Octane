@@ -74,6 +74,7 @@ import {
 } from "@/components/ui/select";
 import { apiJson, jsonBody } from "@/lib/api";
 import { derivePlanSteps } from "@/lib/plan-tasks";
+import type { PlanArchiveResult } from "@/lib/plan-file-archive";
 import type { TaskRunnerSettings } from "@/lib/tasks";
 import { buildTranscript } from "@/lib/transcript";
 import type {
@@ -667,11 +668,16 @@ export function ChatView({
 
   const deleteTask = React.useCallback(
     async (id: string) => {
-      await apiJson<void>(
+      const result = await apiJson<PlanArchiveResult | undefined>(
         `/sessions/${encodeURIComponent(session.id)}/tasks/${encodeURIComponent(id)}`,
         { method: "DELETE" },
       );
       setTasks((current) => current.filter((item) => item.id !== id));
+      if (result?.archived) {
+        toast.success("Plan archived", { description: `Moved to ${result.archived}` });
+      } else if (result?.warning) {
+        toast.warning("Task deleted, plan file kept", { description: result.warning });
+      }
     },
     [session.id],
   );
