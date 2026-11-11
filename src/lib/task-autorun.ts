@@ -28,12 +28,18 @@ function tickerKey(subject: string, sessionID: string): string {
   return `${subject}:${sessionID}`;
 }
 
-function describe(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : String(error);
-}
-
-export function isAutoRunArmed(subject: string, sessionID: string): boolean {
-  return tickers.has(tickerKey(subject, sessionID));
+/** Readable message, unwrapping OpenCode's JSON error bodies. */
+export function describeError(error: unknown): string {
+  const message =
+    error instanceof Error && error.message ? error.message : String(error);
+  try {
+    const parsed = JSON.parse(message) as { message?: unknown; error?: unknown };
+    if (typeof parsed.message === "string" && parsed.message) return parsed.message;
+    if (typeof parsed.error === "string" && parsed.error) return parsed.error;
+  } catch {
+    // plain text
+  }
+  return message;
 }
 
 export function stopAutoRun(subject: string, sessionID: string): void {
@@ -61,7 +67,7 @@ async function tick(info: SessionInfo, sessionID: string, ticker: Ticker): Promi
       stopAutoRun(subject, sessionID);
       await setRunner(subject, sessionID, {
         autoRun: false,
-        stalled: `Stopped after ${MAX_FAILURES} failed attempts: ${describe(error)}`.slice(0, 500),
+        stalled: `Stopped after ${MAX_FAILURES} failed attempts: ${describeError(error)}`.slice(0, 500),
       }).catch((cause) => console.error("[autorun]", sessionID, cause));
     }
   }

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { guard, failure, jsonBody, noStoreJson } from "@/lib/bff";
-import { ensureAutoRun, stopAutoRun } from "@/lib/task-autorun";
+import { describeError, ensureAutoRun, stopAutoRun } from "@/lib/task-autorun";
 import { scheduleTasks } from "@/lib/task-scheduler";
 import {
   getRunner,
@@ -114,7 +114,7 @@ export async function PATCH(
           runner: await getRunner(subject, id),
           tasks: await listTasks(subject, id),
           started: [],
-          warning: error instanceof Error ? error.message : "Could not start tasks.",
+          warning: describeError(error),
         });
       }
     }
