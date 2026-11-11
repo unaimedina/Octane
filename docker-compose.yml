@@ -6,10 +6,11 @@ services:
   skills-init:
     image: alpine:3.20
     user: "0:0"
-    command: ["sh", "-c", "mkdir -p /skills /users && chown -R 1001:1001 /skills && chown 1001:1001 /users"]
+    command: ["sh", "-c", "mkdir -p /skills /users /data && chown -R 1001:1001 /skills && chown 1001:1001 /users /data"]
     volumes:
       - opencode-skills:/skills
       - opencode-users:/users
+      - octane-data:/data
     restart: "no"
 
   # OCTANE authenticates requests and starts one isolated OpenCode server per
@@ -31,7 +32,7 @@ services:
       - opencode-skills:/home/nextjs/.config/opencode/skills
       # Sessions, Anthropic keys and Console logins are isolated per user here.
       - opencode-users:/home/nextjs/.local/share/octane/users
-      # Project metadata and encrypted GitHub tokens.
+      # Project metadata, session tasks and encrypted GitHub tokens.
       - octane-data:/home/nextjs/.local/share/octane-data
       # Keep git identity/safe.directory consistent for user servers.
       - ./docker/gitconfig:/home/nextjs/.gitconfig:ro
@@ -40,7 +41,7 @@ services:
       OPENCODE_BIN: /usr/local/bin/opencode
       OPENCODE_USERS_DIR: /home/nextjs/.local/share/octane/users
       OPENCODE_WORKSPACE: /workspace
-      # Projects and encrypted GitHub connections.
+      # Project metadata, session tasks and encrypted GitHub connections.
       OCTANE_DATA_DIR: /home/nextjs/.local/share/octane-data
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}

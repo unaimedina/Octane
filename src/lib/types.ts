@@ -209,6 +209,37 @@ export type ServerStatus = {
 };
 
 /* -------------------------------------------------------------------------- */
+/* Session TODO tasks                                                          */
+/* -------------------------------------------------------------------------- */
+
+export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+export type TaskPriority = "high" | "medium" | "low";
+
+export type Task = {
+  id: string; // "tsk_" + random base64url
+  sessionID: string;
+  /** Short task name shown in the list. */
+  title: string;
+  /** Definition/details of the task. */
+  description: string;
+  /** Prompt sent to the agent when the task is run. */
+  prompt: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+};
+
+export type TaskInput = {
+  title: string;
+  description?: string;
+  prompt?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+};
+
+/* -------------------------------------------------------------------------- */
 /* Projects and GitHub links                                                   */
 /* -------------------------------------------------------------------------- */
 

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ChatView } from "@/components/chat/chat-view";
+import { requireSession } from "@/lib/auth";
 import { harnessLabel } from "@/lib/harness";
 import {
   getAgents,
@@ -10,9 +11,9 @@ import {
   getSessionBackend,
   getSessionDiff,
   getSkills,
-  getTodos,
   hasRepository,
 } from "@/lib/session-service";
+import { listTasks } from "@/lib/tasks";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Session" };
@@ -26,6 +27,7 @@ export default async function ChatSessionPage({
 }) {
   const { id } = await params;
   const { prompt } = await searchParams;
+  const auth = await requireSession();
 
   let session;
   try {
@@ -36,7 +38,7 @@ export default async function ChatSessionPage({
 
   const [
     messages,
-    todos,
+    tasks,
     diff,
     commands,
     providers,
@@ -46,7 +48,7 @@ export default async function ChatSessionPage({
     repository,
   ] = await Promise.all([
     getMessages(id),
-    getTodos(id),
+    listTasks(auth.subject, id),
     getSessionDiff(id),
     getCommands(),
     getProviders(),
@@ -61,7 +63,7 @@ export default async function ChatSessionPage({
       key={id}
       initialSession={session}
       initialMessages={messages}
-      initialTodos={todos}
+      initialTasks={tasks}
       initialDiff={diff}
       commands={commands}
       models={providers.models}

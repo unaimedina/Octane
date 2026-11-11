@@ -9,72 +9,161 @@ import {
   Copy,
   GitCompareArrows,
   GitMerge,
+  ListPlus,
   ListTodo,
   Loader2,
+  MessageSquare,
+  Pencil,
   Play,
+  Plus,
+  Trash2,
   X,
 } from "lucide-react";
 import { createTwoFilesPatch } from "diff";
 import { toast } from "sonner";
 import { DiffView } from "@/components/chat/diff-view";
+import { TaskDialog } from "@/components/chat/task-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { FileDiff, Todo } from "@/lib/types";
+import type { FileDiff, Task, TaskInput, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-function TodoRow({
-  todo,
-  onRun,
+function TaskRow({
+  task,
   busy,
+  onRun,
+  onEdit,
+  onDelete,
+  onStatus,
 }: {
-  todo: Todo;
-  onRun?: (todo: Todo) => void;
+  task: Task;
   busy?: boolean;
+  onRun?: (task: Task) => void;
+  onEdit: (task: Task) => void;
+  onDelete: (task: Task) => void;
+  onStatus: (task: Task, status: TaskStatus) => void;
 }) {
   const icon =
-    todo.status === "completed" ? (
+    task.status === "completed" ? (
       <Check className="size-3.5 text-success" />
-    ) : todo.status === "in_progress" ? (
+    ) : task.status === "in_progress" ? (
       <Loader2 className="size-3.5 animate-spin text-info" />
-    ) : todo.status === "cancelled" ? (
+    ) : task.status === "cancelled" ? (
       <CircleX className="size-3.5 text-muted-foreground/60" />
     ) : (
       <Circle className="size-3.5 text-muted-foreground/50" />
     );
 
+  const toggleTo: TaskStatus =
+    task.status === "completed" || task.status === "cancelled"
+      ? "pending"
+      : "completed";
+
+  const toggleStatus = () => {
+    if (task.status === "in_progress") return;
+    onStatus(task, toggleTo);
+  };
+
+  const showPrompt =
+    task.prompt.trim() &&
+    task.prompt.trim() !== task.title.trim() &&
+    task.prompt.trim() !== task.description.trim();
+
   return (
-    <li className="flex items-start gap-2.5 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40">
-      <span className="mt-0.5 shrink-0">{icon}</span>
+    <li className="flex items-start gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40">
+      <button
+        type="button"
+        onClick={toggleStatus}
+        disabled={task.status === "in_progress"}
+        className="mt-0.5 shrink-0 rounded-full outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+        aria-label={`Mark ${task.title} ${toggleTo}`}
+        title={
+          task.status === "in_progress" ? "Running" : `Mark ${toggleTo}`
+        }
+      >
+        {icon}
+      </button>
+
       <div className="min-w-0 flex-1">
         <div
           className={cn(
-            "text-[13px] leading-snug",
-            todo.status === "completed" && "text-muted-foreground line-through",
-            todo.status === "cancelled" && "text-muted-foreground line-through",
+            "line-clamp-2 text-[13px] leading-snug",
+            (task.status === "completed" || task.status === "cancelled") &&
+              "text-muted-foreground line-through",
           )}
         >
-          {todo.content}
+          {task.title}
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-          <span>{todo.status.replace("_", " ")}</span>
+        {task.description ? (
+          <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
+            {task.description}
+          </p>
+        ) : null}
+        {showPrompt ? (
+          <p className="mt-1 flex items-start gap-1 line-clamp-1 text-[10px] leading-relaxed text-muted-foreground/70">
+            <MessageSquare className="mt-0.5 size-2.5 shrink-0" />
+            <span className="line-clamp-1">{task.prompt}</span>
+          </p>
+        ) : null}
+        <div className="mt-1 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+          <span>{task.status.replace("_", " ")}</span>
           <span>·</span>
-          <span>{todo.priority}</span>
+          <span>{task.priority}</span>
         </div>
       </div>
-      {onRun && todo.status !== "completed" && todo.status !== "cancelled" ? (
+
+      <div className="mt-0.5 flex shrink-0 items-center">
+        {onRun ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground hover:text-success"
+            onClick={() => onRun(task)}
+            disabled={busy || task.status === "in_progress"}
+            aria-label={`Run task: ${task.title}`}
+            title={
+              task.status === "in_progress"
+                ? "Task is running"
+                : busy
+                  ? "Wait for the current turn"
+                  : "Run this task"
+            }
+          >
+            <Play className="size-3" />
+          </Button>
+        ) : null}
         <Button
           variant="ghost"
           size="icon-xs"
-          className="mt-0.5 shrink-0 text-muted-foreground hover:text-success"
-          onClick={() => onRun(todo)}
-          disabled={busy}
-          aria-label={`Execute task: ${todo.content}`}
-          title={busy ? "Wait for the current turn" : "Execute this task"}
+          className="text-muted-foreground"
+          onClick={() => onEdit(task)}
+          aria-label={`Edit task: ${task.title}`}
+          title="Edit task"
         >
-          <Play className="size-3" />
+          <Pencil className="size-3" />
         </Button>
-      ) : null}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="text-muted-foreground hover:text-destructive"
+          onClick={() => onDelete(task)}
+          aria-label={`Delete task: ${task.title}`}
+          title="Delete task"
+        >
+          <Trash2 className="size-3" />
+        </Button>
+      </div>
     </li>
   );
 }
@@ -149,32 +238,109 @@ function FileDiffDetails({ file }: { file: FileDiff }) {
 }
 
 export const ContextPanel = React.memo(function ContextPanel({
-  todos,
+  tasks,
   diff,
   className,
   hasRepo,
+  planSteps = 0,
   onRunTask,
+  onCreateTask,
+  onUpdateTask,
+  onDeleteTask,
+  onImportPlan,
   onResolveConflicts,
   busy,
 }: {
-  todos: Todo[];
+  tasks: Task[];
   diff: FileDiff[];
   className?: string;
   hasRepo: boolean;
-  onRunTask?: (todo: Todo) => void;
+  planSteps?: number;
+  onRunTask?: (task: Task) => void;
+  onCreateTask?: (input: TaskInput) => Promise<unknown>;
+  onUpdateTask?: (id: string, input: Partial<TaskInput>) => Promise<unknown>;
+  onDeleteTask?: (id: string) => Promise<void>;
+  onImportPlan?: () => Promise<void>;
   onResolveConflicts?: () => void;
   busy?: boolean;
 }) {
   const additions = diff.reduce((sum, file) => sum + file.additions, 0);
   const deletions = diff.reduce((sum, file) => sum + file.deletions, 0);
-  const completed = todos.filter((todo) => todo.status === "completed").length;
+  const completed = tasks.filter((task) => task.status === "completed").length;
   const [selectedTab, setSelectedTab] = React.useState<
     "tasks" | "changes" | null
   >(null);
+  const [editorOpen, setEditorOpen] = React.useState(false);
+  const [editingTask, setEditingTask] = React.useState<Task | undefined>(
+    undefined,
+  );
+  const [deleteTarget, setDeleteTarget] = React.useState<Task | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+
   const tab: "tasks" | "changes" =
     !hasRepo && selectedTab === "changes"
       ? "tasks"
-      : (selectedTab ?? (todos.length > 0 || !hasRepo ? "tasks" : "changes"));
+      : (selectedTab ??
+        (tasks.length > 0 || planSteps > 0 || !hasRepo ? "tasks" : "changes"));
+
+  function openCreate() {
+    setEditingTask(undefined);
+    setEditorOpen(true);
+  }
+
+  function openEdit(task: Task) {
+    setEditingTask(task);
+    setEditorOpen(true);
+  }
+
+  async function handleSave(input: TaskInput) {
+    if (editingTask) {
+      if (!onUpdateTask) return;
+      await onUpdateTask(editingTask.id, input);
+    } else {
+      if (!onCreateTask) return;
+      await onCreateTask(input);
+    }
+  }
+
+  function handleStatus(task: Task, status: TaskStatus) {
+    if (!onUpdateTask) return;
+    void onUpdateTask(task.id, { status }).catch((error: unknown) => {
+      toast.error("Could not update the task", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    });
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || !onDeleteTask || deleting) return;
+    setDeleting(true);
+    try {
+      await onDeleteTask(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error("Could not delete the task", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function importPlan() {
+    if (!onImportPlan || importing) return;
+    setImporting(true);
+    try {
+      await onImportPlan();
+    } catch (error) {
+      toast.error("Could not import the plan", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col bg-muted/15", className)}>
@@ -191,7 +357,7 @@ export const ContextPanel = React.memo(function ContextPanel({
               <ListTodo className="size-3.5" />
               Tasks
               <span className="font-mono text-[10px] text-muted-foreground">
-                {todos.length ? `${completed}/${todos.length}` : "0"}
+                {tasks.length ? `${completed}/${tasks.length}` : "0"}
               </span>
             </TabsTrigger>
             {hasRepo ? (
@@ -204,6 +370,15 @@ export const ContextPanel = React.memo(function ContextPanel({
               </TabsTrigger>
             ) : null}
           </TabsList>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={openCreate}
+            aria-label="New task"
+            title="New task"
+          >
+            <Plus className="size-3.5" />
+          </Button>
           {hasRepo && onResolveConflicts ? (
             <Button
               variant="ghost"
@@ -220,20 +395,69 @@ export const ContextPanel = React.memo(function ContextPanel({
 
         <TabsContent value="tasks" className="min-h-0 flex-1 overflow-hidden">
           <ScrollArea className="h-full">
-            {todos.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
+            {tasks.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
                 <CircleDot className="size-6 text-muted-foreground/40" />
                 <p className="text-xs text-muted-foreground">
-                  No tasks yet. Ask the plan agent for a plan and it will appear
-                  here as steps you can run.
+                  No tasks yet. Add a task or import the steps from the latest
+                  plan.
                 </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button size="sm" onClick={openCreate} className="gap-1.5">
+                    <Plus className="size-3.5" /> New task
+                  </Button>
+                  {planSteps > 0 && onImportPlan ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void importPlan()}
+                      disabled={importing}
+                      className="gap-1.5"
+                    >
+                      {importing ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <ListPlus className="size-3.5" />
+                      )}
+                      Import {planSteps} plan steps
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             ) : (
-              <ul className="space-y-0.5 p-2">
-                {todos.map((todo) => (
-                  <TodoRow key={todo.id} todo={todo} onRun={onRunTask} busy={busy} />
-                ))}
-              </ul>
+              <>
+                {planSteps > 0 && onImportPlan ? (
+                  <div className="border-b border-border/50 p-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void importPlan()}
+                      disabled={importing || busy}
+                      className="w-full justify-start gap-1.5"
+                    >
+                      {importing ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <ListPlus className="size-3.5" />
+                      )}
+                      Import {planSteps} plan steps
+                    </Button>
+                  </div>
+                ) : null}
+                <ul className="space-y-0.5 p-2">
+                  {tasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      busy={busy}
+                      onRun={onRunTask}
+                      onEdit={openEdit}
+                      onDelete={setDeleteTarget}
+                      onStatus={handleStatus}
+                    />
+                  ))}
+                </ul>
+              </>
             )}
           </ScrollArea>
         </TabsContent>
@@ -270,6 +494,50 @@ export const ContextPanel = React.memo(function ContextPanel({
           </TabsContent>
         ) : null}
       </Tabs>
+
+      {editorOpen ? (
+        <TaskDialog
+          key={editingTask?.id ?? "new"}
+          open={editorOpen}
+          onOpenChange={(open) => {
+            setEditorOpen(open);
+            if (!open) setEditingTask(undefined);
+          }}
+          task={editingTask}
+          onSave={handleSave}
+        />
+      ) : null}
+
+      <AlertDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{deleteTarget?.title}” will be removed from this session. The
+              conversation is not affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={deleting}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmDelete();
+              }}
+            >
+              {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });

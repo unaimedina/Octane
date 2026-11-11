@@ -50,7 +50,7 @@ export function opencodeWorkspace(): string {
   return configured ? path.resolve(configured) : process.cwd();
 }
 
-/** Base folder for OCTANE-owned metadata (projects, GitHub connections). */
+/** Base folder for OCTANE-owned metadata (projects, tasks, GitHub connections). */
 export function octaneDataDir(): string {
   const configured = process.env.OCTANE_DATA_DIR?.trim();
   if (configured) return path.resolve(configured);
