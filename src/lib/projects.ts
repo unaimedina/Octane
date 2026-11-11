@@ -6,7 +6,7 @@ import {
   isAbsoluteProjectDirectory,
   normalizeProjectDirectory,
 } from "./project-paths";
-import type { Project, ProjectInput } from "./types";
+import type { Project, ProjectGithubLink, ProjectInput } from "./types";
 import { userKey } from "./user-key";
 
 const STORE_VERSION = 1;
@@ -194,6 +194,7 @@ export async function getProject(
 export async function createProject(
   subject: string,
   input: ProjectInput,
+  github?: ProjectGithubLink,
 ): Promise<Project> {
   const name = requireName(input?.name);
   const description = parseDescription(input?.description);
@@ -206,6 +207,7 @@ export async function createProject(
     ...(description ? { description } : {}),
     directory,
     context,
+    ...(github ? { github } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -223,6 +225,7 @@ export async function updateProject(
   subject: string,
   id: string,
   input: ProjectPatch,
+  github?: ProjectGithubLink | null,
 ): Promise<Project> {
   return withStoreLock(subject, async () => {
     const store = await readStore(subject);
@@ -248,6 +251,9 @@ export async function updateProject(
       if (description) next.description = description;
       else delete next.description;
     }
+
+    if (github === null) delete next.github;
+    else if (github !== undefined) next.github = github;
 
     assertUnique(store.projects, next, id);
     store.projects[index] = next;
