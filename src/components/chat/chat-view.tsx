@@ -2044,7 +2044,7 @@ export function ChatView({
             onMaxParallelChange={handleMaxParallelChange}
             onDismissStalled={handleDismissStalled}
             onStopTask={handleStopTask}
-            onOpenWorker={(id) => setOpenWorkerID(id)}
+            onOpenWorker={setOpenWorkerID}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
@@ -2075,7 +2075,7 @@ export function ChatView({
             onMaxParallelChange={handleMaxParallelChange}
             onDismissStalled={handleDismissStalled}
             onStopTask={handleStopTask}
-            onOpenWorker={(id) => setOpenWorkerID(id)}
+            onOpenWorker={setOpenWorkerID}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
