@@ -46,8 +46,7 @@ test("rejects a 2-cycle and names titles", () => {
     () => validateDependencies("a", ["b"], tasks),
     (error: Error) =>
       error instanceof TaskValidationError &&
-      error.message.includes("Title a") &&
-      error.message.includes("Title b"),
+      error.message === "Dependency cycle: Title a -> Title b -> Title a.",
   );
 });
 
@@ -61,7 +60,8 @@ test("rejects a 3-cycle and names titles", () => {
     () => validateDependencies("a", ["c"], tasks),
     (error: Error) =>
       error instanceof TaskValidationError &&
-      ["Title a", "Title b", "Title c"].every((t) => error.message.includes(t)),
+      error.message ===
+        "Dependency cycle: Title a -> Title c -> Title b -> Title a.",
   );
 });
 
