@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { guard, failure, jsonBody, noStoreJson } from "@/lib/bff";
+import { archivePlanFile } from "@/lib/plan-file-archive";
 import {
   deleteTask,
   TaskConflictError,
@@ -56,11 +57,9 @@ export async function DELETE(
   if (auth.error) return auth.error;
   try {
     const { id, taskId } = await context.params;
-    await deleteTask(auth.session.subject, id, taskId);
-    return new Response(null, {
-      status: 204,
-      headers: { "Cache-Control": "no-store" },
-    });
+    const removed = await deleteTask(auth.session.subject, id, taskId);
+    // Plan-file tasks also move their plan into the plans folder's done/.
+    return noStoreJson(removed ? await archivePlanFile(removed) : {});
   } catch (error) {
     return taskFailure(error);
   }

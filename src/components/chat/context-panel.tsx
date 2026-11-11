@@ -18,6 +18,7 @@ import {
   ListTodo,
   Loader2,
   MessageSquare,
+  MoreHorizontal,
   OctagonAlert,
   Pencil,
   Play,
@@ -683,9 +684,9 @@ export const ContextPanel = React.memo(function ContextPanel({
         }
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="flex items-center gap-1.5 border-b border-border/70 px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-1 border-b border-border/70 px-3 py-2.5">
           <TabsList className="min-w-0 flex-1">
-            <TabsTrigger value="tasks" className="flex-1 gap-1.5 text-xs">
+            <TabsTrigger value="tasks" className="min-w-0 flex-1 gap-1.5 overflow-hidden text-xs">
               <ListTodo className="size-3.5" />
               Tasks
               <span className="font-mono text-[10px] text-muted-foreground">
@@ -698,7 +699,7 @@ export const ContextPanel = React.memo(function ContextPanel({
               ) : null}
             </TabsTrigger>
             {hasRepo ? (
-              <TabsTrigger value="changes" className="flex-1 gap-1.5 text-xs">
+              <TabsTrigger value="changes" className="min-w-0 flex-1 gap-1.5 overflow-hidden text-xs">
                 <GitCompareArrows className="size-3.5" />
                 Changes
                 <span className="font-mono text-[10px] text-muted-foreground">
@@ -710,46 +711,51 @@ export const ContextPanel = React.memo(function ContextPanel({
           <Button
             variant="ghost"
             size="icon-xs"
+            className="shrink-0"
             onClick={openCreate}
             aria-label="New task"
             title="New task"
           >
             <Plus className="size-3.5" />
           </Button>
-          {onImportPlanFiles ? (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={onImportPlanFiles}
-              aria-label="Import plans folder"
-              title="Import plan files from the plans folder"
-            >
-              <FolderInput className="size-3.5" />
-            </Button>
-          ) : null}
-          {onRefreshTasks ? (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={onRefreshTasks}
-              disabled={refreshing}
-              aria-label="Refresh tasks"
-              title="Reload tasks and rescan the plans folder"
-            >
-              <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
-            </Button>
-          ) : null}
-          {hasRepo && onResolveConflicts ? (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={onResolveConflicts}
-              disabled={busy}
-              aria-label="Resolve git conflicts"
-              title="Ask the agent to resolve git conflicts"
-            >
-              <GitMerge className="size-3.5" />
-            </Button>
+          {onImportPlanFiles || onRefreshTasks || (hasRepo && onResolveConflicts) ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="shrink-0"
+                  aria-label="More task actions"
+                  title="More task actions"
+                >
+                  {refreshing ? (
+                    <RefreshCw className="size-3.5 animate-spin" />
+                  ) : (
+                    <MoreHorizontal className="size-3.5" />
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {onImportPlanFiles ? (
+                  <DropdownMenuItem onSelect={onImportPlanFiles}>
+                    <FolderInput className="size-3.5" />
+                    Import plans folder
+                  </DropdownMenuItem>
+                ) : null}
+                {onRefreshTasks ? (
+                  <DropdownMenuItem onSelect={onRefreshTasks} disabled={refreshing}>
+                    <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+                    Refresh tasks
+                  </DropdownMenuItem>
+                ) : null}
+                {hasRepo && onResolveConflicts ? (
+                  <DropdownMenuItem onSelect={onResolveConflicts} disabled={busy}>
+                    <GitMerge className="size-3.5" />
+                    Resolve git conflicts
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
         </div>
 
@@ -928,6 +934,12 @@ export const ContextPanel = React.memo(function ContextPanel({
             <AlertDialogDescription>
               “{deleteTarget?.title}” will be removed from this session. The
               conversation is not affected.
+              {deleteTarget?.source?.kind === "plan-file" ? (
+                <>
+                  {" "}Its plan file {deleteTarget.source.ref} will be moved to
+                  the plans folder&apos;s done/ folder.
+                </>
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
