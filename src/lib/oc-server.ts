@@ -1278,6 +1278,32 @@ export async function respondPermission(
   );
 }
 
+/**
+ * Verify that OpenCode can open a folder before it is stored on a project.
+ * Shared mode has no other filesystem channel, so validation always goes
+ * through the upstream server.
+ */
+export async function validateDirectory(directory: string): Promise<void> {
+  const clean = directory.trim();
+  if (!clean) throw new UpstreamError("Choose an absolute folder path.", 400);
+  try {
+    if ((await apiFlavor()) === "v2") {
+      await upstreamJson(`/api/fs/list?path=${encodeURIComponent(clean)}`, {
+        timeoutMs: 5_000,
+      });
+    } else {
+      await upstreamJson(`/file?path=${encodeURIComponent(clean)}`, {
+        timeoutMs: 5_000,
+      });
+    }
+  } catch (error) {
+    if (error instanceof UpstreamError) {
+      throw new UpstreamError(`OpenCode cannot open this folder: ${clean}`, 400);
+    }
+    throw error;
+  }
+}
+
 function normalizeDirectory(value: string): string {
   return value.trim().replace(/\\/g, "/").replace(/\/+$/, "");
 }

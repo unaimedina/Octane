@@ -111,6 +111,10 @@ export async function createSession(
   return oc.createSession(title, directory);
 }
 
+export async function validateDirectory(directory: string): Promise<void> {
+  await oc.validateDirectory(directory);
+}
+
 export async function updateSessionTitle(
   id: string,
   title: string,

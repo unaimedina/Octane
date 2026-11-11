@@ -30,11 +30,13 @@ export function FolderPicker({
   onOpenChange,
   initialPath,
   onChange,
+  allowDefault = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialPath: string;
   onChange: (path: string) => void;
+  allowDefault?: boolean;
 }) {
   const [path, setPath] = React.useState(initialPath);
   const [directories, setDirectories] = React.useState<FileNode[]>([]);
@@ -156,16 +158,18 @@ export function FolderPicker({
         </div>
 
         <DialogFooter>
-          <Button
-            variant="ghost"
-            className="mr-auto"
-            onClick={() => {
-              onChange("");
-              onOpenChange(false);
-            }}
-          >
-            Use server default
-          </Button>
+          {allowDefault ? (
+            <Button
+              variant="ghost"
+              className="mr-auto"
+              onClick={() => {
+                onChange("");
+                onOpenChange(false);
+              }}
+            >
+              Use server default
+            </Button>
+          ) : null}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

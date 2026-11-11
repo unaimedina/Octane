@@ -207,3 +207,53 @@ export type ServerStatus = {
   lsp: unknown[];
   formatter: unknown[];
 };
+
+/* -------------------------------------------------------------------------- */
+/* Projects and GitHub links                                                   */
+/* -------------------------------------------------------------------------- */
+
+export type ProjectGithubLink = {
+  repo: string; // "owner/name"
+  url: string; // https://github.com/owner/name
+  defaultBranch?: string;
+  private?: boolean;
+  description?: string;
+  linkedAt: number;
+};
+
+export type Project = {
+  id: string; // "prj_" + random base64url
+  name: string;
+  description?: string;
+  directory: string; // absolute path inside the OpenCode/workspace environment
+  context: string; // global project instructions, "" when empty
+  github?: ProjectGithubLink;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type ProjectInput = {
+  name: string;
+  description?: string;
+  directory: string;
+  context?: string;
+  github?: { repo: string } | null;
+};
+
+export type GithubStatus = {
+  configured: boolean;
+  connected: boolean;
+  login?: string;
+  avatarUrl?: string;
+};
+
+export type GithubRepo = {
+  fullName: string;
+  name: string;
+  owner: string;
+  htmlUrl: string;
+  defaultBranch: string;
+  private: boolean;
+  description?: string;
+  updatedAt?: string;
+};
