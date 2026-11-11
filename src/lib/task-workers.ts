@@ -7,7 +7,13 @@ import {
 import { isReady, waitingOn } from "./task-graph";
 import { buildTaskRunText } from "./task-prompt";
 import { taskNumber } from "./task-runner";
-import { getRunner, mutateTasks, TaskConflictError, TaskNotFoundError } from "./tasks";
+import {
+  getRunner,
+  mutateTasks,
+  recordWorker,
+  TaskConflictError,
+  TaskNotFoundError,
+} from "./tasks";
 import type { Task } from "./types";
 
 export type WorkerOptions = {
@@ -106,6 +112,13 @@ export async function launchWorker(
         `Worker session opened in ${worker.directory} instead of ${parent.directory}.`,
       );
     }
+
+    await recordWorker(subject, sessionID, {
+      sessionID: worker.id,
+      taskId: claimed.id,
+      title,
+      startedAt,
+    }).catch(() => undefined); // Never fail a worker launch over bookkeeping.
 
     // Record the worker before prompting, so a reload can find it.
     const { result: recorded } = await mutateTasks<Task>(subject, sessionID, (tasks) => {

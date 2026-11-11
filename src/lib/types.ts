@@ -238,6 +238,15 @@ export type TaskRun = {
   summary?: string;
 };
 
+/** A worker session started by an orchestrator chat for one task. */
+export type WorkerRecord = {
+  sessionID: string;
+  taskId: string;
+  /** Session title at creation, e.g. "Task #3 · Fix login". */
+  title: string;
+  startedAt: number;
+};
+
 export type Task = {
   id: string; // "tsk_" + random base64url
   sessionID: string;

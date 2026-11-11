@@ -9,7 +9,12 @@ import {
   TaskValidationError,
   validateDependencies,
 } from "./task-graph";
-import type { Task, TaskInput, TaskPriority, TaskStatus } from "./types";
+import type { Task, TaskInput, TaskPriority, TaskStatus, WorkerRecord } from "./types";
+import {
+  addWorkerRecord,
+  mergeWorkerRecords,
+  normalizeWorkerRecords,
+} from "./worker-records";
 
 export { TaskConflictError, TaskValidationError };
 
@@ -50,6 +55,7 @@ type TaskStore = {
   sessionID: string;
   tasks: Task[];
   runner?: TaskRunnerSettings;
+  workers?: WorkerRecord[];
 };
 
 export class TaskNotFoundError extends Error {
@@ -169,6 +175,7 @@ async function readStore(subject: string, sessionID: string): Promise<TaskStore>
   );
   const store: TaskStore = { version: STORE_VERSION, sessionID, tasks };
   if (parsed.runner !== undefined) store.runner = normalizeRunner(parsed.runner);
+  if (parsed.workers !== undefined) store.workers = normalizeWorkerRecords(parsed.workers);
   return store;
 }
 
@@ -493,4 +500,51 @@ export async function setRunner(
     await writeStore(subject, sessionID, store);
     return next;
   });
+}
+
+/** Remember a worker session started by this orchestrator session. */
+export async function recordWorker(
+  subject: string,
+  sessionID: string,
+  record: WorkerRecord,
+): Promise<void> {
+  await withStoreLock(lockKey(subject, sessionID), async () => {
+    const store = await readStore(subject, sessionID);
+    store.workers = addWorkerRecord(store.workers ?? [], record);
+    await writeStore(subject, sessionID, store);
+  });
+}
+
+/** Workers of one orchestrator session (stored records + task.run), newest first. */
+export async function listWorkers(subject: string, sessionID: string): Promise<WorkerRecord[]> {
+  const store = await readStore(subject, sessionID);
+  return mergeWorkerRecords(store.workers ?? [], store.tasks);
+}
+
+/** Every worker session id of this user, across all orchestrator sessions. */
+export async function listWorkerSessionIds(subject: string): Promise<string[]> {
+  let files: string[];
+  try {
+    files = await fs.readdir(taskDir(subject));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  const ids = new Set<string>();
+  for (const file of files) {
+    if (!file.endsWith(".json")) continue;
+    try {
+      const parsed: unknown = JSON.parse(
+        await fs.readFile(path.join(taskDir(subject), file), "utf8"),
+      );
+      if (!isRecord(parsed)) continue;
+      const tasks = Array.isArray(parsed.tasks) ? (parsed.tasks as Task[]) : [];
+      for (const worker of mergeWorkerRecords(normalizeWorkerRecords(parsed.workers), tasks)) {
+        ids.add(worker.sessionID);
+      }
+    } catch {
+      // Skip unreadable files.
+    }
+  }
+  return [...ids];
 }
