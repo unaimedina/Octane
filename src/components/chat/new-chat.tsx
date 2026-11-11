@@ -25,6 +25,8 @@ import {
   type ModelSelection,
 } from "@/components/model-picker";
 import { Button } from "@/components/ui/button";
+import { resolveAgainst } from "@/lib/folder-paths";
+import { isAbsoluteProjectDirectory } from "@/lib/project-paths";
 import { cn } from "@/lib/utils";
 
 const suggestions = [
@@ -86,12 +88,18 @@ export function NewChat() {
       }
       try {
         const savedRoot = window.localStorage.getItem("oc.rootFolder");
-        setRootFolder(savedRoot?.trim() || "");
+        let root = savedRoot?.trim() || "";
+        const base = pathInfo?.directory?.trim();
+        if (root && base && !isAbsoluteProjectDirectory(root)) {
+          root = resolveAgainst(base, root);
+          window.localStorage.setItem("oc.rootFolder", root);
+        }
+        setRootFolder(root);
       } catch {
         setRootFolder("");
       }
     });
-  }, [models]);
+  }, [models, pathInfo?.directory]);
 
   function changeRootFolder(next: string) {
     const trimmed = next.trim();
