@@ -257,7 +257,8 @@ export type Project = {
   name: string;
   description?: string;
   directory: string; // absolute path inside the OpenCode/workspace environment
-  context: string; // global project instructions, "" when empty
+  /** @deprecated use AGENTS.md */
+  context: string; // legacy global project instructions, "" when empty
   github?: ProjectGithubLink;
   createdAt: number;
   updatedAt: number;

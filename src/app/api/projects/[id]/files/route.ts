@@ -11,6 +11,8 @@ import { getProject } from "@/lib/projects";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MULTIPART_SLACK_BYTES = 64 * 1024;
+
 function notFound(): Response {
   return noStoreJson({ error: "not_found", message: "Project not found." }, 404);
 }
@@ -47,6 +49,16 @@ export async function POST(
     const { id } = await context.params;
     const project = await getProject(auth.session.subject, id);
     if (!project) return notFound();
+
+    // Reject oversized bodies before buffering them. Multipart framing adds a
+    // little overhead on top of the file itself.
+    const declared = Number(request.headers.get("content-length") ?? "");
+    if (Number.isFinite(declared) && declared > MAX_CONTEXT_FILE_BYTES + MULTIPART_SLACK_BYTES) {
+      return noStoreJson(
+        { error: "too_large", message: "Files must be 5 MB or smaller." },
+        413,
+      );
+    }
 
     let form: FormData;
     try {
