@@ -26,6 +26,10 @@ import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
 import { BrandMark } from "@/components/brand";
 import { ContextPanel } from "@/components/chat/context-panel";
+import {
+  PlanFilesImportDialog,
+  type PlanFilePreviewItem,
+} from "@/components/chat/plan-files-import-dialog";
 import { Composer, type ModelSelection, type OutgoingMessage } from "@/components/chat/composer";
 import { Markdown } from "@/components/chat/markdown";
 import { SubagentPartView } from "@/components/chat/subagent-part";
@@ -571,6 +575,13 @@ export function ChatView({
       (step) => !existing.has(step.title.trim().toLowerCase()),
     );
   }, [planSteps, tasks]);
+  const [planFilePreview, setPlanFilePreview] = React.useState<{
+    plansDir: string | null;
+    items: PlanFilePreviewItem[];
+    warnings: string[];
+  }>({ plansDir: null, items: [], warnings: [] });
+  const [planFilesOpen, setPlanFilesOpen] = React.useState(false);
+  const planFilesTimer = React.useRef<number | null>(null);
   const [diff, setDiff] = React.useState(initialDiff);
   const [draft, setDraft] = React.useState(initialDraft);
   const [working, setWorking] = React.useState(false);
@@ -679,6 +690,53 @@ export function ChatView({
     }
   }, [pendingPlanSteps, session.id]);
 
+  /** Look for plan files in the session folder. Debounced. */
+  const refreshPlanFiles = React.useCallback(() => {
+    if (planFilesTimer.current) window.clearTimeout(planFilesTimer.current);
+    planFilesTimer.current = window.setTimeout(() => {
+      planFilesTimer.current = null;
+      void apiJson<{
+        plansDir: string | null;
+        items: PlanFilePreviewItem[];
+        warnings: string[];
+      }>(`/sessions/${encodeURIComponent(session.id)}/tasks/plan-files`)
+        .then(setPlanFilePreview)
+        .catch(() => undefined);
+    }, 500);
+  }, [session.id]);
+
+  React.useEffect(() => {
+    refreshPlanFiles();
+    return () => {
+      if (planFilesTimer.current) window.clearTimeout(planFilesTimer.current);
+    };
+  }, [refreshPlanFiles]);
+
+  const importPlanFiles = React.useCallback(
+    async (refs: string[]) => {
+      const result = await apiJson<{
+        added: number;
+        updated: number;
+        skipped: number;
+        warnings: string[];
+        tasks: Task[];
+      }>(`/sessions/${encodeURIComponent(session.id)}/tasks/plan-files`, {
+        method: "POST",
+        ...jsonBody({ refs }),
+      });
+      // The server returns the full, ordered task list for the session.
+      setTasks(result.tasks);
+      toast.success(
+        `Imported ${result.added} plan file${result.added === 1 ? "" : "s"}`,
+        result.warnings.length
+          ? { description: result.warnings.join(" ") }
+          : undefined,
+      );
+      refreshPlanFiles();
+    },
+    [session.id, refreshPlanFiles],
+  );
+
   /** Reload tasks from the server, which settles finished runs. Debounced. */
   const refreshTasks = React.useCallback(() => {
     if (taskRefreshTimer.current) window.clearTimeout(taskRefreshTimer.current);
@@ -705,6 +763,11 @@ export function ChatView({
       refreshTasks();
     }
   }, [refreshTasks]);
+
+  const pendingPlanFiles = planFilePreview.items.filter((item) => !item.imported);
+  const planFilesProp = pendingPlanFiles.length > 0 && planFilePreview.plansDir
+    ? { count: pendingPlanFiles.length, dir: planFilePreview.plansDir }
+    : undefined;
 
   const status =
     statuses[backendSessionID] ??
@@ -995,6 +1058,7 @@ export function ChatView({
               flushPending();
               setWorking(false);
               refreshTasks();
+              refreshPlanFiles();
             }
             break;
           case "session.idle":
@@ -1002,6 +1066,7 @@ export function ChatView({
             setWorking(false);
             scheduleRefresh();
             refreshTasks();
+            refreshPlanFiles();
             break;
           case "session.compacted":
             scheduleRefresh();
@@ -1026,6 +1091,7 @@ export function ChatView({
       router,
       scheduleRefresh,
       flushPending,
+      refreshPlanFiles,
       queueFlush,
       refreshTasks,
     ],
@@ -1732,6 +1798,8 @@ export function ChatView({
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
             onImportPlan={importPlanTasks}
+            planFiles={planFilesProp}
+            onImportPlanFiles={() => setPlanFilesOpen(true)}
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
@@ -1752,11 +1820,22 @@ export function ChatView({
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
             onImportPlan={importPlanTasks}
+            planFiles={planFilesProp}
+            onImportPlanFiles={() => setPlanFilesOpen(true)}
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
         </SheetContent>
       </Sheet>
+
+      <PlanFilesImportDialog
+        open={planFilesOpen}
+        onOpenChange={setPlanFilesOpen}
+        dir={planFilePreview.plansDir ?? "plans"}
+        items={planFilePreview.items}
+        warnings={planFilePreview.warnings}
+        onImport={importPlanFiles}
+      />
 
       <Dialog open={contextDialogOpen} onOpenChange={handleContextDialogOpenChange}>
         <DialogContent className="sm:max-w-lg">

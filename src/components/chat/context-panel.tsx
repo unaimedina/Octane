@@ -335,12 +335,14 @@ export const ContextPanel = React.memo(function ContextPanel({
   className,
   hasRepo,
   planSteps = 0,
+  planFiles,
   onRunTask,
   onStopTask,
   onCreateTask,
   onUpdateTask,
   onDeleteTask,
   onImportPlan,
+  onImportPlanFiles,
   onResolveConflicts,
   busy,
 }: {
@@ -349,12 +351,14 @@ export const ContextPanel = React.memo(function ContextPanel({
   className?: string;
   hasRepo: boolean;
   planSteps?: number;
+  planFiles?: { count: number; dir: string };
   onRunTask?: (task: Task) => void;
   onStopTask?: (task: Task) => void;
   onCreateTask?: (input: TaskInput) => Promise<unknown>;
   onUpdateTask?: (id: string, input: Partial<TaskInput>) => Promise<unknown>;
   onDeleteTask?: (id: string) => Promise<void>;
   onImportPlan?: () => Promise<void>;
+  onImportPlanFiles?: () => void;
   onResolveConflicts?: () => void;
   busy?: boolean;
 }) {
@@ -385,7 +389,7 @@ export const ContextPanel = React.memo(function ContextPanel({
     !hasRepo && selectedTab === "changes"
       ? "tasks"
       : (selectedTab ??
-        (tasks.length > 0 || planSteps > 0 || !hasRepo ? "tasks" : "changes"));
+        (tasks.length > 0 || planSteps > 0 || (planFiles?.count ?? 0) > 0 || !hasRepo ? "tasks" : "changes"));
 
   function openCreate() {
     setEditingTask(undefined);
@@ -530,10 +534,35 @@ export const ContextPanel = React.memo(function ContextPanel({
                       Import {planSteps} plan steps
                     </Button>
                   ) : null}
+                  {planFiles && planFiles.count > 0 && onImportPlanFiles ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onImportPlanFiles}
+                      className="gap-1.5"
+                    >
+                      <ListPlus className="size-3.5" />
+                      Import {planFiles.count} plan files from {planFiles.dir}/
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ) : (
               <>
+                {planFiles && planFiles.count > 0 && onImportPlanFiles ? (
+                  <div className="border-b border-border/50 p-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onImportPlanFiles}
+                      disabled={busy}
+                      className="w-full justify-start gap-1.5"
+                    >
+                      <ListPlus className="size-3.5" />
+                      Import {planFiles.count} plan files from {planFiles.dir}/
+                    </Button>
+                  </div>
+                ) : null}
                 {planSteps > 0 && onImportPlan ? (
                   <div className="border-b border-border/50 p-2">
                     <Button

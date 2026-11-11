@@ -181,6 +181,8 @@ The outcome is decided from that reply:
 
 **Reload-safe.** The server records each run and settles it when the task list is next loaded. Closing or reloading the tab no longer leaves a task stuck **in progress**. A running task can only be stopped (**Stop** button) or set to cancelled, not edited to another status.
 
+**Plan files.** If the session folder has `plans/` (or `advisor-plans/`) with `NNN-*.md` files written by the `improve` skill, the panel offers **Import N plan files**. Each file becomes a task titled `NNN · <title>`, with its "Why this matters" text as the definition and a prompt telling the agent to execute that file and update `plans/README.md`. Priority (P1 is high, P2 and P3 are medium), dependencies (from the file and the index table, soft ones included) and status (DONE, REJECTED, BLOCKED from the index) are mapped onto the task. Re-importing is safe: plans are matched by file path, so only new files are added and finished plans are marked completed, but renaming a file creates a new task. Plan files are read through OpenCode, and are not available with the legacy (v1) OpenCode API.
+
 Tasks are stored per user and session under `OCTANE_DATA_DIR/tasks`; they persist across restarts. Older task files are upgraded automatically on first write.
 
 ### Usage estimates
