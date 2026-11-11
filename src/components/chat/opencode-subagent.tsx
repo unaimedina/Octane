@@ -37,7 +37,7 @@ function toolSummary(part: ToolPart): string {
   return part.tool;
 }
 
-function toSteps(messages: MessageWithParts[]): SubagentStep[] {
+export function toSteps(messages: MessageWithParts[]): SubagentStep[] {
   const steps: SubagentStep[] = [];
   for (const message of messages) {
     for (const part of message.parts) {

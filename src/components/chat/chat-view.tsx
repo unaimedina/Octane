@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
   BookOpen,
+  Bot,
   Bug,
   Check,
   ChevronDown,
@@ -34,6 +35,7 @@ import { Composer, type ModelSelection, type OutgoingMessage } from "@/component
 import { Markdown } from "@/components/chat/markdown";
 import { SubagentPartView } from "@/components/chat/subagent-part";
 import { ToolCallPart } from "@/components/chat/tool-part";
+import { WorkerDialog } from "@/components/chat/worker-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -91,6 +93,7 @@ import type {
   TaskInput,
   TextPart,
   UserMessage,
+  WorkerRecord,
 } from "@/lib/types";
 import { diffTouchesPlanFiles, partTouchesPlanFiles } from "@/lib/plan-file-paths";
 const INITIAL_VISIBLE_MESSAGES = 50;
@@ -561,9 +564,12 @@ export function ChatView({
     subscribe,
     renameSession,
     deleteSession,
+    hideSessions,
   } = useAppData();
 
   const [session, setSession] = React.useState(initialSession);
+  const [workers, setWorkers] = React.useState<WorkerRecord[]>([]);
+  const [openWorkerID, setOpenWorkerID] = React.useState<string | null>(null);
   const [messages, setMessages] = React.useState(() =>
     sortMessages(initialMessages),
   );
@@ -799,12 +805,13 @@ export function ChatView({
     if (taskRefreshTimer.current) window.clearTimeout(taskRefreshTimer.current);
     taskRefreshTimer.current = window.setTimeout(() => {
       taskRefreshTimer.current = null;
-      void apiJson<Task[] | { tasks: Task[]; runner?: TaskRunnerSettings }>(
-        `/sessions/${encodeURIComponent(session.id)}/tasks`,
-      )
+      void apiJson<
+        Task[] | { tasks: Task[]; runner?: TaskRunnerSettings; workers?: WorkerRecord[] }
+      >(`/sessions/${encodeURIComponent(session.id)}/tasks`)
         .then((result) => {
           setTasks(Array.isArray(result) ? result : result.tasks);
           if (!Array.isArray(result) && result.runner) setRunner(result.runner);
+          if (!Array.isArray(result) && result.workers) setWorkers(result.workers);
         })
         .catch(() => undefined);
     }, 500);
@@ -832,6 +839,11 @@ export function ChatView({
   const planFilesProp = pendingPlanFiles.length > 0 && planFilePreview.plansDir
     ? { count: pendingPlanFiles.length, dir: planFilePreview.plansDir }
     : undefined;
+
+  // Workers belong to this chat: drop them from the sidebar as soon as known.
+  React.useEffect(() => {
+    if (workers.length) hideSessions(workers.map((worker) => worker.sessionID));
+  }, [workers, hideSessions]);
 
   // Load the auto-run settings (GET /tasks also re-arms the server ticker).
   React.useEffect(() => {
@@ -1522,6 +1534,12 @@ export function ChatView({
     }
   }, [buildAgent, session.id, taskModel]);
 
+  const runningWorkers = workers.filter((worker) => {
+    const type = statuses[worker.sessionID]?.type;
+    return type === "busy" || type === "retry";
+  }).length;
+  const openWorker = workers.find((worker) => worker.sessionID === openWorkerID) ?? null;
+
   const handleStopTask = React.useCallback(
     async (task: Task) => {
       try {
@@ -1746,6 +1764,54 @@ export function ChatView({
           >
             <PanelRight className="size-4" />
           </Button>
+
+          {workers.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" aria-label="Subagents">
+                  <Bot className="size-4" />
+                  <span className="hidden sm:inline">Subagents</span>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {runningWorkers > 0
+                      ? `${runningWorkers}/${workers.length}`
+                      : workers.length}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                {workers.map((worker) => {
+                  const running =
+                    statuses[worker.sessionID]?.type === "busy" ||
+                    statuses[worker.sessionID]?.type === "retry";
+                  const run = tasks.find((item) => item.id === worker.taskId)?.run;
+                  const outcome =
+                    run?.sessionID === worker.sessionID ? run.outcome : undefined;
+                  const dot = running
+                    ? "bg-info pulse-dot"
+                    : outcome === "done"
+                      ? "bg-success"
+                      : outcome === "blocked" || outcome === "error" || outcome === "aborted"
+                        ? "bg-destructive"
+                        : "bg-muted-foreground/40";
+                  return (
+                    <DropdownMenuItem
+                      key={worker.sessionID}
+                      onSelect={() => setOpenWorkerID(worker.sessionID)}
+                    >
+                      <span className={`size-1.5 shrink-0 rounded-full ${dot}`} />
+                      <span className="min-w-0 flex-1 truncate">{worker.title}</span>
+                      <span
+                        className="shrink-0 text-[10px] text-muted-foreground"
+                        suppressHydrationWarning
+                      >
+                        {formatTime(worker.startedAt)}
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1978,6 +2044,7 @@ export function ChatView({
             onMaxParallelChange={handleMaxParallelChange}
             onDismissStalled={handleDismissStalled}
             onStopTask={handleStopTask}
+            onOpenWorker={setOpenWorkerID}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
@@ -2008,6 +2075,7 @@ export function ChatView({
             onMaxParallelChange={handleMaxParallelChange}
             onDismissStalled={handleDismissStalled}
             onStopTask={handleStopTask}
+            onOpenWorker={setOpenWorkerID}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
@@ -2021,6 +2089,16 @@ export function ChatView({
           />
         </SheetContent>
       </Sheet>
+
+      <WorkerDialog
+        worker={openWorker}
+        task={openWorker ? tasks.find((item) => item.id === openWorker.taskId) : undefined}
+        status={openWorker ? statuses[openWorker.sessionID] : undefined}
+        onOpenChange={(open) => {
+          if (!open) setOpenWorkerID(null);
+        }}
+        onStop={handleStopTask}
+      />
 
       <PlanFilesImportDialog
         open={planFilesOpen}

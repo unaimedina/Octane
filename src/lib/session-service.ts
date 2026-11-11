@@ -1,4 +1,5 @@
 import * as oc from "./oc-server";
+import { listWorkerSessionIds } from "./tasks";
 import type {
   Agent,
   Command,
@@ -43,8 +44,8 @@ export async function getSessions(): Promise<SessionWithHarness[]> {
     .sort((a, b) => b.time.updated - a.time.updated);
 }
 
-export async function getHiddenSessionIds(): Promise<string[]> {
-  return [];
+export async function getHiddenSessionIds(subject: string): Promise<string[]> {
+  return listWorkerSessionIds(subject).catch(() => []);
 }
 
 export async function getSession(id: string): Promise<SessionWithHarness> {
