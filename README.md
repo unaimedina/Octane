@@ -57,6 +57,7 @@ The web image embeds the `ghcr.io/anomalyco/opencode` binary pinned to a tested 
 
 - **Live sessions** — streaming text, reasoning, tool calls and subagent progress over SSE, with permission prompts (once / always / reject), optimistic sends, automatic reconnect, a 50-message working window with the full log one click away, and fork or summarize from the session menu.
 - **A real workspace** — searchable sessions, a project file browser, GitHub-flavoured Markdown with copyable code blocks, changed-file review with `@pierre/diffs`, lazy diffs, copy-patch, and a root folder picker for new sessions.
+- **Projects** — group sessions around a local folder, keep shared context for every new chat, and link an optional GitHub repository verified through OAuth.
 - **Tasks, shell and slash commands** — persistent per-session tasks with a definition, an agent prompt, status and priority. Run a task, edit it, add one manually, or import the steps from the latest plan; then switch to `!` shell mode for terminal cards and insert the server's slash commands.
 - **Context without a turn** — drop docs, logs, images, PDFs or another chat into a conversation as context, and attach skills to any prompt.
 - **Models and providers, per user** — choose a model per session or set a default, pick an agent, and connect OpenCode Console or an Anthropic API key. Each signed-in user gets a private OpenCode server, so sessions and provider credentials never cross accounts.
@@ -94,10 +95,14 @@ Subagents are matched to their child session by `parentID` and rendered as live 
 | `DISCORD_GUILD_ID` | Discord | — | Server where the role is checked. |
 | `DISCORD_ROLE_ID` | Discord | — | Role required to sign in. |
 | `DISCORD_REDIRECT_URI` | no | auto | Exact callback URL. Defaults to `<public-origin>/api/auth/discord/callback`. |
+| `OCTANE_DATA_DIR` | no | `~/.local/share/octane-data` | Projects, session tasks and encrypted GitHub connections. Compose mounts the `octane-data` volume here. |
+| `GITHUB_CLIENT_ID` | GitHub | — | OAuth App client ID. Enables repository linking when set with the secret. |
+| `GITHUB_CLIENT_SECRET` | GitHub | — | OAuth App client secret. |
+| `GITHUB_REDIRECT_URI` | no | auto | Exact callback URL. Defaults to `<public-origin>/api/github/callback`. |
+| `GITHUB_SCOPES` | no | `read:user repo` | Space-separated OAuth scopes. Set `read:user public_repo` for public repositories only. |
 | `OPENCODE_SERVER_MODE` | no | `per-user` | `per-user` gives every signed-in user a private OpenCode server. `shared` uses one `OPENCODE_SERVER_URL` for everybody, including its sessions and credentials. |
 | `OPENCODE_BIN` | per-user | `opencode` | CLI used to start per-user servers. Use an absolute path when it is not on `PATH`. |
 | `OPENCODE_USERS_DIR` | per-user | `~/.local/share/octane/users` | Base folder for per-user OpenCode data. Each user gets a hashed subfolder with sessions, credentials and logs. |
-| `OCTANE_DATA_DIR` | no | `~/.local/share/octane-data` | OCTANE-owned metadata, currently per-session tasks. Compose mounts the `octane-data` volume here. |
 | `OPENCODE_WORKSPACE` | no | current folder | Working directory used by per-user servers. Compose sets `/workspace`. |
 | `OPENCODE_START_TIMEOUT_MS` | no | `45000` | How long to wait for a new per-user server to answer `/api/info`. |
 | `OPENCODE_SERVER_URL` | shared | `http://127.0.0.1:4096` | Upstream OpenCode server used only in `shared` mode. |
@@ -130,12 +135,36 @@ Each user can also connect their own OpenCode Console account from **Settings �
 
 > Password sign-in is a single local identity: everyone who knows the password shares one OpenCode server. Use Discord sign-in when you need one isolated server per person.
 
+### Projects
+
+**Projects** groups sessions around an absolute folder inside the OpenCode environment. Each project stores a name, description, local directory, and an optional global context string. Sessions created from a project page run in that directory and receive the context as a synthetic "Project context" message; editing the context does not rewrite existing sessions.
+
+Sessions created from the normal New chat screen with the same folder appear in the project's session list by directory, but they do not automatically receive the project context. This is deliberate in v1.
+
+Deleting a project removes only the project metadata. Sessions, messages and files are never deleted; the project grouping and its context are. Projects work in OpenCode v2 mode, where sessions can be created with a location. In v1, project CRUD works but creating a project session returns a clear error instead of running the chat outside the folder.
+
+Project metadata lives in `OCTANE_DATA_DIR/projects/<hash>.json`, one file per signed-in subject.
+
+### GitHub OAuth
+
+Linking a GitHub repository is optional. Without `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, projects still work and the picker shows that GitHub is not configured.
+
+1. Create a **GitHub OAuth App** under <https://github.com/settings/developers>.
+2. Set the authorization callback URL to `<public-origin>/api/github/callback` (for local Docker: `http://localhost:3000/api/github/callback`). If the public URL differs from the request origin, set `GITHUB_REDIRECT_URI` to the exact value.
+3. Copy the **Client ID** and **Client Secret** into the environment. The default scope is `read:user repo`, which includes private repositories; set `GITHUB_SCOPES=read:user public_repo` for public-only access.
+4. Open **Projects → Connect GitHub** and authorize. The account login appears on the Projects page and can be disconnected at any time.
+
+The OAuth access token is encrypted with AES-256-GCM using a key derived from `AUTH_SECRET` and stored in `OCTANE_DATA_DIR/github/<hash>.json` with restrictive permissions. API responses never include the token. Rotating `AUTH_SECRET` makes stored tokens undecryptable; users must reconnect GitHub, while existing project repository links remain as metadata.
+
+Deleting a project or disconnecting GitHub does not clone, pull, push or create anything in the repository. The link is metadata only.
+
 ### Session tasks
 
 Each session has a persistent task list in the context panel. A task has a **definition** (shown in the list), its own **prompt** (sent to the agent when you press Run), a status and a priority. You can add tasks manually, edit any field, delete them, import the steps from the latest plan agent response, and toggle completion with the status icon.
 
 Running a task sends the definition plus prompt to the build agent, marks it **in progress**, and marks it **completed** when the session becomes idle. A session error or an abort returns it to pending so it can be retried. Tasks are stored per user and session under `OCTANE_DATA_DIR/tasks`; they persist across restarts.
 
+### Usage estimates
 
 The chat landing page and `/usage` aggregate the cost and token totals reported by sessions created during the current month. Set `USAGE_ROLLING_BUDGET_USD`, `USAGE_WEEKLY_BUDGET_USD` and `USAGE_MONTHLY_BUDGET_USD` to turn those totals into limits and a month-end forecast. These are local estimates, not OpenCode Go billing; use the OpenCode Console for exact credits and limits.
 
@@ -143,11 +172,11 @@ The chat landing page and `/usage` aggregate the cost and token totals reported 
 
 The web container mounts `WORKSPACE_PATH` at `/workspace` and shares it with every per-user OpenCode server it starts there. OCTANE uses it for file tools and the folder picker.
 
-Skills installed from Settings live in the shared `opencode-skills` volume: OCTANE writes to `/home/nextjs/.config/opencode/skills`, and each per-user server gets that folder linked into its own config directory. The one-shot `skills-init` service prepares both the skills and `opencode-users` volumes for UID `1001` before the web container starts.
+Skills installed from Settings live in the shared `opencode-skills` volume: OCTANE writes to `/home/nextjs/.config/opencode/skills`, and each per-user server gets that folder linked into its own config directory. The one-shot `skills-init` service prepares the skills, `opencode-users` and `octane-data` volumes for UID `1001` before the web container starts.
 
 Per-user sessions and provider credentials live in the `opencode-users` volume at `/home/nextjs/.local/share/octane/users`. Back it up if you want to keep sessions and connected keys across a full volume reset. Removing it signs every user out of OpenCode Console and deletes their sessions and Anthropic keys.
 
-Per-session tasks live in the `octane-data` volume at `/home/nextjs/.local/share/octane-data`. Back it up together with `opencode-users` and the workspace if you want to keep the task lists.
+Project metadata, encrypted GitHub tokens and session tasks live in the `octane-data` volume at `/home/nextjs/.local/share/octane-data`. Back it up together with `opencode-users` and the workspace. The directory is created with restrictive permissions, and token and task files are written with mode `0600`. If the volume is lost, projects, repository links and task lists are lost; sessions and files are not.
 
 > Upgrading from a shared server: sessions and credentials in the old `opencode-data` volume are not copied into per-user directories. Users start with an empty session list and reconnect their Anthropic key or OpenCode Console account in Settings.
 
@@ -250,6 +279,9 @@ npm run hash-password -- "password"
 assets/                    source logos (icon.png, logo.png, minimal.png)
 scripts/generate-icons.mjs builds favicons/app icons/manifest icons from assets
 src/app/(app)/             authenticated workspace (chat, files, settings, usage)
+src/app/(app)/projects/    project list and project detail
+src/app/api/projects/      project CRUD and project session creation
+src/app/api/github/        GitHub OAuth, status, repository lookup, disconnect
 src/app/login/             login screen
 src/app/api/auth/          password login, Discord OAuth, logout, session
 src/app/api/sessions/      session CRUD + prompt/command/shell/abort/fork/summarize/permissions + tasks
@@ -258,9 +290,14 @@ src/app/api/events/        authenticated SSE proxy / v2 translator
 src/app/api/integrations/  OpenCode account and provider connections
 src/app/api/skills/        skill discovery and installation
 src/components/chat/       chat, composer, markdown, diff, tools, context panel
+src/components/projects/   project list, dialog, detail and GitHub picker
 src/components/usage/      usage dashboard and charts
 src/lib/auth.ts            password verification + JWT sessions + CSRF helpers
 src/lib/discord.ts         OAuth2 exchange + bot role check
+src/lib/github.ts          GitHub OAuth exchange and repository API
+src/lib/github-store.ts    encrypted GitHub connection store
+src/lib/projects.ts        per-user project JSON store
+src/lib/project-paths.ts   client-safe project path helpers
 src/lib/harness.ts         OpenCode label helpers
 src/lib/session-service.ts OpenCode session facade
 src/lib/tasks.ts          per-user, per-session task store

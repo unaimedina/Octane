@@ -8,6 +8,7 @@ import {
   Check,
   ChevronsUpDown,
   FolderGit2,
+  FolderKanban,
   FolderTree,
   Loader2,
   LogIn,
@@ -70,6 +71,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/chat", label: "Chats", icon: MessageSquare },
+  { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/usage", label: "Usage", icon: ChartColumn },
   { href: "/files", label: "Files", icon: FolderTree },
   { href: "/settings", label: "Settings", icon: Settings2 },
@@ -745,6 +747,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return sessions.find((session) => session.id === id)?.title ?? "Session";
     }
     if (pathname?.startsWith("/files")) return "Project files";
+    if (pathname?.startsWith("/projects/")) return "Project";
+    if (pathname?.startsWith("/projects")) return "Projects";
     if (pathname?.startsWith("/usage")) return "Usage";
     if (pathname?.startsWith("/settings")) return "Settings";
     return "Workspace";

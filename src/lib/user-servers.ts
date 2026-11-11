@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess, type SpawnOptions } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { createWriteStream, existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import net from "node:net";
@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { once } from "node:events";
 import { opencodeBin, opencodeSkillsDir, opencodeUsersDir, opencodeWorkspace } from "./env";
+import { userKey } from "./user-key";
 
 /**
  * One OpenCode server per user.
@@ -77,11 +78,6 @@ function startTimeoutMs(): number {
   return Number.isFinite(configured) && configured > 0
     ? configured
     : DEFAULT_START_TIMEOUT_MS;
-}
-
-/** Stable, filesystem-safe directory name for a user subject. */
-export function userKey(subject: string): string {
-  return createHash("sha256").update(subject).digest("hex").slice(0, 32);
 }
 
 function recordFromDescriptor(

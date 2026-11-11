@@ -32,7 +32,7 @@ services:
       - opencode-skills:/home/nextjs/.config/opencode/skills
       # Sessions, Anthropic keys and Console logins are isolated per user here.
       - opencode-users:/home/nextjs/.local/share/octane/users
-      # Session tasks and other OCTANE-owned metadata.
+      # Project metadata, session tasks and encrypted GitHub tokens.
       - octane-data:/home/nextjs/.local/share/octane-data
       # Keep git identity/safe.directory consistent for user servers.
       - ./docker/gitconfig:/home/nextjs/.gitconfig:ro
@@ -41,8 +41,12 @@ services:
       OPENCODE_BIN: /usr/local/bin/opencode
       OPENCODE_USERS_DIR: /home/nextjs/.local/share/octane/users
       OPENCODE_WORKSPACE: /workspace
-      # Session tasks and other OCTANE-owned metadata.
+      # Project metadata, session tasks and encrypted GitHub connections.
       OCTANE_DATA_DIR: /home/nextjs/.local/share/octane-data
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-}
+      GITHUB_SCOPES: "${GITHUB_SCOPES:-read:user repo}"
       # Shared mode only. Ignored when OPENCODE_SERVER_MODE=per-user.
       OPENCODE_SERVER_URL: ${OPENCODE_SERVER_URL:-http://127.0.0.1:4096}
       OPENCODE_SERVER_USERNAME: ${OPENCODE_SERVER_USERNAME:-opencode}

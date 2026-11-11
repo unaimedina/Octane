@@ -9,6 +9,10 @@ export const DISCORD_STATE_COOKIE = "oc_discord_state";
 /** 10 minutes is plenty for a Discord consent screen. */
 export const DISCORD_STATE_TTL_SECONDS = 60 * 10;
 
+/** Short-lived cookie carrying the GitHub OAuth state and post-connect redirect. */
+export const GITHUB_STATE_COOKIE = "oc_github_state";
+export const GITHUB_STATE_TTL_SECONDS = 60 * 10;
+
 /** 12 hours. Sessions are stateless signed tokens. */
 export const SESSION_TTL_SECONDS = 60 * 60 * 12;
 
