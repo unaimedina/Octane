@@ -30,6 +30,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: "Pending",
   in_progress: "In progress",
   completed: "Completed",
+  blocked: "Blocked",
   cancelled: "Cancelled",
 };
 
@@ -43,11 +44,13 @@ export function TaskDialog({
   open,
   onOpenChange,
   task,
+  tasks,
   onSave,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task?: Task;
+  tasks: Task[];
   onSave: (input: TaskInput) => Promise<void>;
 }) {
   const [title, setTitle] = React.useState(task?.title ?? "");
@@ -58,6 +61,9 @@ export function TaskDialog({
   );
   const [status, setStatus] = React.useState<TaskStatus>(
     task?.status ?? "pending",
+  );
+  const [dependsOn, setDependsOn] = React.useState<string[]>(
+    task?.dependsOn ?? [],
   );
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -76,6 +82,7 @@ export function TaskDialog({
         prompt,
         priority,
         status,
+        dependsOn,
       });
       onOpenChange(false);
     } catch (cause) {
@@ -174,7 +181,9 @@ export function TaskDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  {Object.entries(STATUS_LABELS)
+                    .filter(([value]) => value !== "in_progress")
+                    .map(([value, label]) => (
                     <SelectItem key={value} value={value}>
                       {label}
                     </SelectItem>
@@ -183,6 +192,43 @@ export function TaskDialog({
               </Select>
             </div>
           </div>
+
+          {tasks.some((item) => item.id !== task?.id) ? (
+            <div className="space-y-1.5">
+              <Label>Depends on</Label>
+              <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-[10px] border border-border/60 p-1.5">
+                {tasks.map((item, position) =>
+                  item.id === task?.id ? null : (
+                    <label
+                      key={item.id}
+                      className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/40"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dependsOn.includes(item.id)}
+                        onChange={(event) =>
+                          setDependsOn((current) =>
+                            event.target.checked
+                              ? [...current, item.id]
+                              : current.filter((id) => id !== item.id),
+                          )
+                        }
+                      />
+                      <span className="min-w-0 truncate">
+                        <span className="font-mono text-muted-foreground">
+                          #{position + 1}
+                        </span>{" "}
+                        {item.title}
+                      </span>
+                    </label>
+                  ),
+                )}
+              </div>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                The task can run once every selected task is completed.
+              </p>
+            </div>
+          ) : null}
 
           {error ? (
             <p className="rounded-[10px] border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">

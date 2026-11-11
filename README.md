@@ -57,8 +57,8 @@ The web image embeds the `ghcr.io/anomalyco/opencode` binary pinned to a tested 
 
 - **Live sessions** — streaming text, reasoning, tool calls and subagent progress over SSE, with permission prompts (once / always / reject), optimistic sends, automatic reconnect, a 50-message working window with the full log one click away, and fork or summarize from the session menu.
 - **A real workspace** — searchable sessions, a project file browser, GitHub-flavoured Markdown with copyable code blocks, changed-file review with `@pierre/diffs`, lazy diffs, copy-patch, and a root folder picker for new sessions.
-- **Projects** — group sessions around a local folder, edit the project's `AGENTS.md` in the browser, upload reference files into `.octane/context/`, and link an optional GitHub repository verified through OAuth.
-- **Tasks, shell and slash commands** — persistent per-session tasks with a definition, an agent prompt, status and priority. Run a task, edit it, add one manually, or import the steps from the latest plan; then switch to `!` shell mode for terminal cards and insert the server's slash commands.
+- **Projects** — group sessions around a local folder, keep shared context for every new chat, and link an optional GitHub repository verified through OAuth.
+- **Tasks, shell and slash commands** — persistent per-session tasks with a definition, an agent prompt, status and priority. Tasks can depend on other tasks, and the server decides when a run is finished from the agent's reply. Run a task, edit it, add one manually, or import the steps from the latest plan; then switch to `!` shell mode for terminal cards and insert the server's slash commands.
 - **Context without a turn** — drop docs, logs, images, PDFs or another chat into a conversation as context, and attach skills to any prompt.
 - **Models and providers, per user** — choose a model per session or set a default, pick an agent, and connect OpenCode Console or an Anthropic API key. Each signed-in user gets a private OpenCode server, so sessions and provider credentials never cross accounts.
 - **Usage, locally estimated** — monthly cost, tokens and sessions, a model breakdown, optional budgets and a month-end forecast at `/usage`.
@@ -170,7 +170,26 @@ Deleting a project or disconnecting GitHub does not clone, pull, push or create 
 
 Each session has a persistent task list in the context panel. A task has a **definition** (shown in the list), its own **prompt** (sent to the agent when you press Run), a status and a priority. You can add tasks manually, edit any field, delete them, import the steps from the latest plan agent response, and toggle completion with the status icon.
 
-Running a task sends the definition plus prompt to the build agent, marks it **in progress**, and marks it **completed** when the session becomes idle. A session error or an abort returns it to pending so it can be retried. Tasks are stored per user and session under `OCTANE_DATA_DIR/tasks`; they persist across restarts.
+**Dependencies.** A task can depend on up to 20 other tasks in the same session. A task with unfinished dependencies shows **Waiting on: …** and can't run. Cycles are rejected, and deleting a task removes it from other tasks' dependencies.
+
+**Running.** Running a task sends the definition plus prompt to the build agent and marks it **in progress**. Run is refused while the session is busy. The prompt asks the agent to end with one line:
+
+```text
+TASK_RESULT: done — <summary>
+TASK_RESULT: blocked — <reason>
+```
+
+The outcome is decided from that reply:
+
+- `done` marks the task **completed**.
+- No marker marks it completed but flagged *unverified*.
+- `blocked` sets the status to **blocked** with the agent's reason.
+- An error or **Stop** returns it to pending so it can be retried.
+- If the agent never answers within 2 minutes, it returns to pending with an error.
+
+**Reload-safe.** The server records each run and settles it when the task list is next loaded. Closing or reloading the tab no longer leaves a task stuck **in progress**. A running task can only be stopped (**Stop** button) or set to cancelled, not edited to another status.
+
+Tasks are stored per user and session under `OCTANE_DATA_DIR/tasks`; they persist across restarts. Older task files are upgraded automatically on first write.
 
 ### Usage estimates
 
@@ -312,6 +331,9 @@ src/lib/project-paths.ts   client-safe project path helpers
 src/lib/harness.ts         OpenCode label helpers
 src/lib/session-service.ts OpenCode session facade
 src/lib/tasks.ts          per-user, per-session task store
+src/lib/task-graph.ts     task dependency rules (pure)
+src/lib/task-prompt.ts    task run prompt + TASK_RESULT parsing (pure)
+src/lib/task-runner.ts    server-side run reconciliation
 src/lib/tenant.ts          per-request routing to the signed-in user's server
 src/lib/user-servers.ts    isolated OpenCode processes (spawn, reuse, logs)
 src/lib/integrations.ts    OpenCode `/connect` integrations (Anthropic key/OAuth)

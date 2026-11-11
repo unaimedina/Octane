@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { guard, failure, jsonBody, noStoreJson } from "@/lib/bff";
 import {
   deleteTask,
+  TaskConflictError,
   TaskNotFoundError,
   TaskValidationError,
   updateTask,
@@ -17,6 +18,9 @@ function taskFailure(error: unknown): Response {
   }
   if (error instanceof TaskNotFoundError) {
     return noStoreJson({ error: "not_found", message: error.message }, 404);
+  }
+  if (error instanceof TaskConflictError) {
+    return noStoreJson({ error: error.code, message: error.message }, 409);
   }
   return failure(error);
 }
