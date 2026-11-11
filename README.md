@@ -217,6 +217,25 @@ Per-user sessions and provider credentials live in the `opencode-users` volume a
 
 Project metadata, encrypted GitHub tokens and session tasks live in the `octane-data` volume at `/home/nextjs/.local/share/octane-data`. Back it up together with `opencode-users` and the workspace. AGENTS.md and context files live in the project folder inside the workspace, not in `octane-data`, so back them up with the workspace. The directory is created with restrictive permissions, and token and task files are written with mode `0600`. If the volume is lost, projects, repository links and task lists are lost; sessions and files are not.
 
+> **Upgrading an older compose file?** Compose files written before Projects existed don't mount `octane-data`, so projects, tasks and GitHub connections were stored inside the container and lost whenever it was recreated (for example after `docker compose pull`). Add the volume to the `web` service and to `skills-init`:
+>
+> ```yaml
+> services:
+>   skills-init:
+>     command: ["sh", "-c", "mkdir -p /skills /users /data && chown -R 1001:1001 /skills && chown 1001:1001 /users /data"]
+>     volumes:
+>       - octane-data:/data   # plus the existing skills/users volumes
+>   web:
+>     volumes:
+>       - octane-data:/home/nextjs/.local/share/octane-data   # plus the existing volumes
+>     environment:
+>       OCTANE_DATA_DIR: /home/nextjs/.local/share/octane-data
+> volumes:
+>   octane-data:
+> ```
+>
+> Since this release the image also declares that folder as a volume, and the Projects page and `/api/health` (`"storage": "ephemeral"`) warn when it is not on a volume.
+
 > Upgrading from a shared server: sessions and credentials in the old `opencode-data` volume are not copied into per-user directories. Users start with an empty session list and reconnect their Anthropic key or OpenCode Console account in Settings.
 
 Each user who signs in gets a long-lived OpenCode process (reused across web restarts through `server.json`). Plan container memory for the number of active users; the processes are started on first use, not at boot.
