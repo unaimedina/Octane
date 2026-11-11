@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
 import { guard, failure, jsonBody, noStoreJson } from "@/lib/bff";
+import { reconcileTasks } from "@/lib/task-runner";
 import {
   createTask,
-  listTasks,
+  TaskConflictError,
   TaskNotFoundError,
   TaskValidationError,
 } from "@/lib/tasks";
@@ -18,6 +19,9 @@ function taskFailure(error: unknown): Response {
   if (error instanceof TaskNotFoundError) {
     return noStoreJson({ error: "not_found", message: error.message }, 404);
   }
+  if (error instanceof TaskConflictError) {
+    return noStoreJson({ error: error.code, message: error.message }, 409);
+  }
   return failure(error);
 }
 
@@ -29,7 +33,7 @@ export async function GET(
   if (auth.error) return auth.error;
   try {
     const { id } = await context.params;
-    return noStoreJson({ tasks: await listTasks(auth.session.subject, id) });
+    return noStoreJson({ tasks: await reconcileTasks(auth.session.subject, id) });
   } catch (error) {
     return taskFailure(error);
   }
