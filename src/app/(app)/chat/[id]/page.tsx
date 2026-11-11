@@ -11,6 +11,7 @@ import {
   getSessionDiff,
   getSkills,
   getTodos,
+  hasRepository,
 } from "@/lib/session-service";
 
 export const dynamic = "force-dynamic";
@@ -33,17 +34,27 @@ export default async function ChatSessionPage({
     notFound();
   }
 
-  const [messages, todos, diff, commands, providers, agents, skills, backend] =
-    await Promise.all([
-      getMessages(id),
-      getTodos(id),
-      getSessionDiff(id),
-      getCommands(),
-      getProviders(),
-      getAgents(),
-      getSkills(),
-      getSessionBackend(id),
-    ]);
+  const [
+    messages,
+    todos,
+    diff,
+    commands,
+    providers,
+    agents,
+    skills,
+    backend,
+    repository,
+  ] = await Promise.all([
+    getMessages(id),
+    getTodos(id),
+    getSessionDiff(id),
+    getCommands(),
+    getProviders(),
+    getAgents(),
+    getSkills(),
+    getSessionBackend(id),
+    hasRepository(session.directory || undefined),
+  ]);
 
   return (
     <ChatView
@@ -59,6 +70,7 @@ export default async function ChatSessionPage({
       skills={skills}
       harnessLabel={harnessLabel(session.harness)}
       backendSessionID={backend.backendID}
+      hasRepo={repository}
       initialDraft={prompt ?? ""}
     />
   );

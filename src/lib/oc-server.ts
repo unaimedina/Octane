@@ -428,6 +428,39 @@ export async function getPathInfo(): Promise<Path | null> {
   }
 }
 
+/** Whether the given workspace (or the server default) is in a VCS repo. */
+export async function hasRepository(directory?: string): Promise<boolean> {
+  try {
+    if ((await apiFlavor()) === "v2") {
+      const query = directory
+        ? `?location[directory]=${encodeURIComponent(directory)}`
+        : "";
+      const result = await upstreamJson<Raw>(`/api/vcs${query}`, {
+        timeoutMs: 4_000,
+      });
+      const data = raw(result.data);
+      const branch = data.branch;
+      return Boolean(
+        str(data.provider) ||
+          (typeof branch === "string" ? branch : str(raw(branch).current)),
+      );
+    }
+    const query = directory
+      ? `?directory=${encodeURIComponent(directory)}`
+      : "";
+    const result = await upstreamJson<Raw>(`/vcs${query}`, {
+      timeoutMs: 4_000,
+    });
+    const branch = result.branch;
+    return Boolean(
+      str(result.provider) ||
+        (typeof branch === "string" ? branch : str(raw(branch).current)),
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function getSessions(): Promise<Session[]> {
   try {
     if ((await apiFlavor()) === "v2") {

@@ -67,6 +67,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiJson, jsonBody } from "@/lib/api";
+import { derivePlanTasks } from "@/lib/plan-tasks";
 import { buildTranscript } from "@/lib/transcript";
 import type {
   Agent,
@@ -528,6 +529,7 @@ export function ChatView({
   skills,
   harnessLabel,
   backendSessionID,
+  hasRepo,
   initialDraft = "",
 }: {
   initialSession: Session;
@@ -541,6 +543,7 @@ export function ChatView({
   skills: Skill[];
   harnessLabel: string;
   backendSessionID: string;
+  hasRepo: boolean;
   initialDraft?: string;
 }) {
   const router = useRouter();
@@ -558,6 +561,8 @@ export function ChatView({
     sortMessages(initialMessages),
   );
   const [todos, setTodos] = React.useState(initialTodos);
+  const planTasks = React.useMemo(() => derivePlanTasks(messages), [messages]);
+  const tasks = todos.length > 0 ? todos : planTasks;
   const [diff, setDiff] = React.useState(initialDiff);
   const [draft, setDraft] = React.useState(initialDraft);
   const [working, setWorking] = React.useState(false);
@@ -942,7 +947,12 @@ export function ChatView({
   );
 
   const handleSend = React.useCallback(
-    async ({ text, attachments, skills: skillIds }: OutgoingMessage) => {
+    async ({
+      text,
+      attachments,
+      skills: skillIds,
+      agent: agentOverride,
+    }: OutgoingMessage) => {
     const trimmed = text.trim();
     if (!trimmed && attachments.length === 0) return;
 
@@ -984,7 +994,7 @@ export function ChatView({
         ? commands.find((item) => item.name === commandMatch[1])
         : undefined;
     const effectiveModel = model;
-    const effectiveAgent = agent || agents[0]?.name || "build";
+    const effectiveAgent = agentOverride ?? (agent || agents[0]?.name || "build");
 
     const optimisticParts: Part[] = [];
     if (trimmed) {
@@ -1108,23 +1118,34 @@ export function ChatView({
     setContextDialogOpen(true);
   }, []);
 
+  const buildAgent = React.useMemo(
+    () =>
+      agents.find((item) => item.name === "build")?.name ??
+      agents.find((item) => item.mode !== "subagent" && item.name !== "plan")
+        ?.name ??
+      "build",
+    [agents],
+  );
+
   const handleRunTask = React.useCallback(
     (todo: Todo) => {
       if (busy) {
         toast.error("Wait for the current turn to finish");
         return;
       }
+      setAgent(buildAgent);
       void handleSend({
-        text: `Execute this task:\n\n${todo.content}`,
+        text: `Execute this planned task:\n\n${todo.content}\n\nWork only on this task and report what you changed.`,
         attachments: [],
         skills: [],
+        agent: buildAgent,
       }).catch((error: unknown) => {
         toast.error("Could not start the task", {
           description: error instanceof Error ? error.message : undefined,
         });
       });
     },
-    [busy, handleSend],
+    [busy, buildAgent, handleSend],
   );
 
   const handleResolveConflicts = React.useCallback(() => {
@@ -1549,10 +1570,11 @@ export function ChatView({
       {showContextDesktop ? (
         <aside className="hidden w-[320px] shrink-0 border-l border-border/60 bg-muted/15 xl:block">
           <ContextPanel
-            todos={todos}
+            todos={tasks}
             diff={diff}
+            hasRepo={hasRepo}
             onRunTask={handleRunTask}
-            onResolveConflicts={handleResolveConflicts}
+            onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
         </aside>
@@ -1562,10 +1584,11 @@ export function ChatView({
         <SheetContent side="right" className="w-[340px] p-0 sm:max-w-[360px]">
           <SheetTitle className="sr-only">Session context</SheetTitle>
           <ContextPanel
-            todos={todos}
+            todos={tasks}
             diff={diff}
+            hasRepo={hasRepo}
             onRunTask={handleRunTask}
-            onResolveConflicts={handleResolveConflicts}
+            onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
         </SheetContent>
