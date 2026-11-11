@@ -1,12 +1,18 @@
-import type { MessageWithParts, TextPart, Todo } from "./types";
+import type { MessageWithParts, TextPart } from "./types";
 
-const MAX_TASKS = 40;
+const MAX_STEPS = 100;
+
+export type PlanStep = {
+  id: string;
+  title: string;
+  completed: boolean;
+};
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function cleanTask(value: string): string {
+function cleanStep(value: string): string {
   return value
     .replace(/^\s*\[[ xX]\]\s+/, "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -18,7 +24,7 @@ function cleanTask(value: string): string {
 }
 
 type ParsedLine = {
-  content: string;
+  title: string;
   completed: boolean;
 };
 
@@ -28,17 +34,17 @@ function parseLine(line: string): ParsedLine | null {
       line,
     );
   if (!match) return null;
-  const content = cleanTask(match[2] ?? "");
-  if (content.length < 4 || content.length > 500) return null;
+  const title = cleanStep(match[2] ?? "");
+  if (title.length < 4 || title.length > 500) return null;
   return {
-    content,
+    title,
     completed: (match[1] ?? "").toLowerCase() === "x",
   };
 }
 
-/** Turn a markdown plan into tasks without depending on a todo API. */
-export function parsePlanText(value: string): Todo[] {
-  const tasks: Todo[] = [];
+/** Turn a markdown plan into importable steps. */
+export function parsePlanText(value: string): PlanStep[] {
+  const steps: PlanStep[] = [];
   const seen = new Set<string>();
   let fenced = false;
 
@@ -51,23 +57,22 @@ export function parsePlanText(value: string): Todo[] {
 
     const parsed = parseLine(rawLine);
     if (!parsed) continue;
-    const key = parsed.content.toLowerCase();
+    const key = parsed.title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
 
-    tasks.push({
-      id: `plan-${tasks.length + 1}`,
-      content: parsed.content,
-      status: parsed.completed ? "completed" : "pending",
-      priority: "medium",
+    steps.push({
+      id: `plan-${steps.length + 1}`,
+      title: parsed.title,
+      completed: parsed.completed,
     });
-    if (tasks.length >= MAX_TASKS) break;
+    if (steps.length >= MAX_STEPS) break;
   }
 
-  return tasks;
+  return steps;
 }
 
-function tasksFromToolParts(parts: MessageWithParts["parts"]): Todo[] {
+function stepsFromToolParts(parts: MessageWithParts["parts"]): PlanStep[] {
   for (const part of parts) {
     if (part.type !== "tool") continue;
     const input = part.state.input ?? {};
@@ -75,7 +80,7 @@ function tasksFromToolParts(parts: MessageWithParts["parts"]): Todo[] {
     if (part.tool === "todowrite" || part.tool === "todo") {
       const items = input.todos ?? input.items;
       if (Array.isArray(items)) {
-        const tasks = items
+        const steps = items
           .map((item, index) => {
             const record =
               item && typeof item === "object"
@@ -83,17 +88,16 @@ function tasksFromToolParts(parts: MessageWithParts["parts"]): Todo[] {
                 : {};
             return {
               id: asText(record.id) || `plan-tool-${index + 1}`,
-              content: cleanTask(
+              title: cleanStep(
                 asText(record.content) ||
                   asText(record.task) ||
                   asText(record.title),
               ),
-              status: asText(record.status) || "pending",
-              priority: asText(record.priority) || "medium",
+              completed: asText(record.status) === "completed",
             };
           })
-          .filter((task) => task.content);
-        if (tasks.length > 0) return tasks;
+          .filter((step) => step.title);
+        if (steps.length > 0) return steps;
       }
     }
 
@@ -102,8 +106,8 @@ function tasksFromToolParts(parts: MessageWithParts["parts"]): Todo[] {
         asText(input.filePath) || asText(input.path) || asText(input.file);
       const content = asText(input.content) || asText(input.newString);
       if (/plan/i.test(file) && content) {
-        const tasks = parsePlanText(content);
-        if (tasks.length > 0) return tasks;
+        const steps = parsePlanText(content);
+        if (steps.length > 0) return steps;
       }
     }
   }
@@ -111,26 +115,25 @@ function tasksFromToolParts(parts: MessageWithParts["parts"]): Todo[] {
 }
 
 /**
- * Derive the task list from the latest plan-agent response. OpenCode v2 does
- * not expose a todo endpoint, so the plan text (or a plan file the agent wrote)
- * is the only portable source.
+ * Steps from the latest plan-agent response. These are not tasks yet; the UI
+ * offers an explicit import action so the user can review and edit them first.
  */
-export function derivePlanTasks(messages: MessageWithParts[]): Todo[] {
+export function derivePlanSteps(messages: MessageWithParts[]): PlanStep[] {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.info.role !== "assistant") continue;
     const mode = message.info.mode?.toLowerCase() ?? "";
     if (mode !== "plan" && !mode.startsWith("plan")) continue;
 
-    const fromTools = tasksFromToolParts(message.parts);
+    const fromTools = stepsFromToolParts(message.parts);
     if (fromTools.length > 0) return fromTools;
 
     const text = message.parts
       .filter((part): part is TextPart => part.type === "text")
       .map((part) => part.text)
       .join("\n");
-    const tasks = parsePlanText(text);
-    if (tasks.length > 0) return tasks;
+    const steps = parsePlanText(text);
+    if (steps.length > 0) return steps;
   }
   return [];
 }

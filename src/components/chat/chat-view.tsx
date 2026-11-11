@@ -67,7 +67,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiJson, jsonBody } from "@/lib/api";
-import { derivePlanTasks } from "@/lib/plan-tasks";
+import { derivePlanSteps } from "@/lib/plan-tasks";
 import { buildTranscript } from "@/lib/transcript";
 import type {
   Agent,
@@ -82,8 +82,9 @@ import type {
   Session,
   Skill,
   SubagentPart,
+  Task,
+  TaskInput,
   TextPart,
-  Todo,
   UserMessage,
 } from "@/lib/types";
 const INITIAL_VISIBLE_MESSAGES = 50;
@@ -182,6 +183,20 @@ function eventSessionId(event: Event): string | undefined {
   if (info?.sessionID) return info.sessionID;
   if (event.type.startsWith("session.")) return info?.id;
   return undefined;
+}
+
+function buildTaskRunText(task: Task): string {
+  const title = task.title.trim();
+  const definition = task.description.trim();
+  const prompt = task.prompt.trim() || definition || title;
+  return [
+    `Task: ${title}`,
+    definition && definition !== title ? `Definition:\n${definition}` : "",
+    `Instructions:\n${prompt}`,
+    "Work only on this task and report what you changed.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 const ReasoningBlock = React.memo(function ReasoningBlock({
@@ -520,7 +535,7 @@ const suggestions = [
 export function ChatView({
   initialSession,
   initialMessages,
-  initialTodos,
+  initialTasks,
   initialDiff,
   commands,
   models,
@@ -534,7 +549,7 @@ export function ChatView({
 }: {
   initialSession: Session;
   initialMessages: MessageWithParts[];
-  initialTodos: Todo[];
+  initialTasks: Task[];
   initialDiff: FileDiff[];
   commands: Command[];
   models: ModelOption[];
@@ -560,9 +575,16 @@ export function ChatView({
   const [messages, setMessages] = React.useState(() =>
     sortMessages(initialMessages),
   );
-  const [todos, setTodos] = React.useState(initialTodos);
-  const planTasks = React.useMemo(() => derivePlanTasks(messages), [messages]);
-  const tasks = todos.length > 0 ? todos : planTasks;
+  const [tasks, setTasks] = React.useState(initialTasks);
+  const planSteps = React.useMemo(() => derivePlanSteps(messages), [messages]);
+  const pendingPlanSteps = React.useMemo(() => {
+    const existing = new Set(
+      tasks.map((task) => task.title.trim().toLowerCase()),
+    );
+    return planSteps.filter(
+      (step) => !existing.has(step.title.trim().toLowerCase()),
+    );
+  }, [planSteps, tasks]);
   const [diff, setDiff] = React.useState(initialDiff);
   const [draft, setDraft] = React.useState(initialDraft);
   const [working, setWorking] = React.useState(false);
@@ -603,6 +625,94 @@ export function ChatView({
   const flushTimer = React.useRef<number | null>(null);
   const earlierScrollHeight = React.useRef<number | null>(null);
   const restoredModel = React.useRef(false);
+  const runningTaskRef = React.useRef<string | null>(null);
+
+  const createTask = React.useCallback(
+    async (input: TaskInput) => {
+      const task = await apiJson<Task>(
+        `/sessions/${encodeURIComponent(session.id)}/tasks`,
+        { method: "POST", ...jsonBody(input) },
+      );
+      setTasks((current) => [...current, task]);
+      return task;
+    },
+    [session.id],
+  );
+
+  const updateTask = React.useCallback(
+    async (id: string, input: Partial<TaskInput>) => {
+      const task = await apiJson<Task>(
+        `/sessions/${encodeURIComponent(session.id)}/tasks/${encodeURIComponent(id)}`,
+        { method: "PATCH", ...jsonBody(input) },
+      );
+      setTasks((current) =>
+        current.map((item) => (item.id === task.id ? task : item)),
+      );
+      return task;
+    },
+    [session.id],
+  );
+
+  const deleteTask = React.useCallback(
+    async (id: string) => {
+      await apiJson<void>(
+        `/sessions/${encodeURIComponent(session.id)}/tasks/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+      setTasks((current) => current.filter((item) => item.id !== id));
+    },
+    [session.id],
+  );
+
+  const importPlanTasks = React.useCallback(async () => {
+    if (pendingPlanSteps.length === 0) return;
+    const result = await apiJson<{
+      tasks: Task[];
+      added: number;
+      skipped: number;
+    }>(`/sessions/${encodeURIComponent(session.id)}/tasks/import`, {
+      method: "POST",
+      ...jsonBody({
+        items: pendingPlanSteps.map((step) => ({
+          title: step.title,
+          description: "",
+          prompt: step.title,
+          status: step.completed ? "completed" : "pending",
+          priority: "medium",
+        })),
+      }),
+    });
+    setTasks((current) => [...current, ...result.tasks]);
+    if (result.added > 0) {
+      toast.success(
+        `Imported ${result.added} plan step${result.added === 1 ? "" : "s"}`,
+        result.skipped ? { description: `${result.skipped} already existed.` } : undefined,
+      );
+    } else {
+      toast.message("No new plan steps to import");
+    }
+  }, [pendingPlanSteps, session.id]);
+
+  const finishRunningTask = React.useCallback(() => {
+    const taskId = runningTaskRef.current;
+    if (!taskId) return;
+    runningTaskRef.current = null;
+    void updateTask(taskId, { status: "completed" }).catch((error: unknown) => {
+      toast.error("Could not mark the task complete", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    });
+  }, [updateTask]);
+
+  const resetRunningTask = React.useCallback(
+    (status: "pending" | "cancelled" = "pending") => {
+      const taskId = runningTaskRef.current;
+      if (!taskId) return;
+      runningTaskRef.current = null;
+      void updateTask(taskId, { status }).catch(() => undefined);
+    },
+    [updateTask],
+  );
 
   const status =
     statuses[backendSessionID] ??
@@ -793,7 +903,7 @@ export function ChatView({
     if (atBottomRef.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages, todos]);
+  }, [messages, tasks]);
 
   function showEarlier() {
     const el = scrollRef.current;
@@ -892,18 +1002,23 @@ export function ChatView({
             if (event.properties.status.type === "idle") {
               flushPending();
               setWorking(false);
+              finishRunningTask();
             }
             break;
           case "session.idle":
             flushPending();
             setWorking(false);
             scheduleRefresh();
+            finishRunningTask();
             break;
           case "session.compacted":
             scheduleRefresh();
             break;
-          case "todo.updated":
-            setTodos(event.properties.todos);
+          case "session.error":
+            resetRunningTask("pending");
+            toast.error("Session error", {
+              description: errorLabel(event.properties.error) ?? undefined,
+            });
             break;
           case "session.diff":
             setDiff(event.properties.diff);
@@ -912,7 +1027,17 @@ export function ChatView({
             break;
         }
       }),
-    [subscribe, session.id, backendSessionID, router, scheduleRefresh, flushPending, queueFlush],
+    [
+      subscribe,
+      session.id,
+      backendSessionID,
+      router,
+      scheduleRefresh,
+      flushPending,
+      queueFlush,
+      finishRunningTask,
+      resetRunningTask,
+    ],
   );
 
   React.useEffect(() => {
@@ -1107,12 +1232,13 @@ export function ChatView({
   );
 
   const handleAbort = React.useCallback(async () => {
+    resetRunningTask("pending");
     await apiJson(`/sessions/${encodeURIComponent(session.id)}/abort`, {
       method: "POST",
     });
     setWorking(false);
     toast.success("Stopped");
-  }, [session.id]);
+  }, [resetRunningTask, session.id]);
 
   const openContextDialog = React.useCallback(() => {
     setContextDialogOpen(true);
@@ -1128,24 +1254,41 @@ export function ChatView({
   );
 
   const handleRunTask = React.useCallback(
-    (todo: Todo) => {
+    async (task: Task) => {
       if (busy) {
         toast.error("Wait for the current turn to finish");
         return;
       }
-      setAgent(buildAgent);
-      void handleSend({
-        text: `Execute this planned task:\n\n${todo.content}\n\nWork only on this task and report what you changed.`,
-        attachments: [],
-        skills: [],
-        agent: buildAgent,
-      }).catch((error: unknown) => {
+      const previousStatus = task.status;
+      try {
+        await updateTask(task.id, { status: "in_progress" });
+      } catch (error) {
         toast.error("Could not start the task", {
           description: error instanceof Error ? error.message : undefined,
         });
-      });
+        return;
+      }
+
+      runningTaskRef.current = task.id;
+      setAgent(buildAgent);
+      try {
+        await handleSend({
+          text: buildTaskRunText(task),
+          attachments: [],
+          skills: [],
+          agent: buildAgent,
+        });
+      } catch (error) {
+        runningTaskRef.current = null;
+        await updateTask(task.id, { status: previousStatus }).catch(
+          () => undefined,
+        );
+        toast.error("Could not start the task", {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      }
     },
-    [busy, buildAgent, handleSend],
+    [busy, buildAgent, handleSend, updateTask],
   );
 
   const handleResolveConflicts = React.useCallback(() => {
@@ -1570,10 +1713,15 @@ export function ChatView({
       {showContextDesktop ? (
         <aside className="hidden w-[320px] shrink-0 border-l border-border/60 bg-muted/15 xl:block">
           <ContextPanel
-            todos={tasks}
+            tasks={tasks}
             diff={diff}
             hasRepo={hasRepo}
+            planSteps={pendingPlanSteps.length}
             onRunTask={handleRunTask}
+            onCreateTask={createTask}
+            onUpdateTask={updateTask}
+            onDeleteTask={deleteTask}
+            onImportPlan={importPlanTasks}
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
@@ -1584,10 +1732,15 @@ export function ChatView({
         <SheetContent side="right" className="w-[340px] p-0 sm:max-w-[360px]">
           <SheetTitle className="sr-only">Session context</SheetTitle>
           <ContextPanel
-            todos={tasks}
+            tasks={tasks}
             diff={diff}
             hasRepo={hasRepo}
+            planSteps={pendingPlanSteps.length}
             onRunTask={handleRunTask}
+            onCreateTask={createTask}
+            onUpdateTask={updateTask}
+            onDeleteTask={deleteTask}
+            onImportPlan={importPlanTasks}
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />

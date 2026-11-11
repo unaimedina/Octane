@@ -57,7 +57,7 @@ The web image embeds the `ghcr.io/anomalyco/opencode` binary pinned to a tested 
 
 - **Live sessions** — streaming text, reasoning, tool calls and subagent progress over SSE, with permission prompts (once / always / reject), optimistic sends, automatic reconnect, a 50-message working window with the full log one click away, and fork or summarize from the session menu.
 - **A real workspace** — searchable sessions, a project file browser, GitHub-flavoured Markdown with copyable code blocks, changed-file review with `@pierre/diffs`, lazy diffs, copy-patch, and a root folder picker for new sessions.
-- **Tasks, shell and slash commands** — run pending tasks from the context panel, switch to `!` shell mode for terminal cards with exit codes and output, and insert the server's slash commands.
+- **Tasks, shell and slash commands** — persistent per-session tasks with a definition, an agent prompt, status and priority. Run a task, edit it, add one manually, or import the steps from the latest plan; then switch to `!` shell mode for terminal cards and insert the server's slash commands.
 - **Context without a turn** — drop docs, logs, images, PDFs or another chat into a conversation as context, and attach skills to any prompt.
 - **Models and providers, per user** — choose a model per session or set a default, pick an agent, and connect OpenCode Console or an Anthropic API key. Each signed-in user gets a private OpenCode server, so sessions and provider credentials never cross accounts.
 - **Usage, locally estimated** — monthly cost, tokens and sessions, a model breakdown, optional budgets and a month-end forecast at `/usage`.
@@ -97,6 +97,7 @@ Subagents are matched to their child session by `parentID` and rendered as live 
 | `OPENCODE_SERVER_MODE` | no | `per-user` | `per-user` gives every signed-in user a private OpenCode server. `shared` uses one `OPENCODE_SERVER_URL` for everybody, including its sessions and credentials. |
 | `OPENCODE_BIN` | per-user | `opencode` | CLI used to start per-user servers. Use an absolute path when it is not on `PATH`. |
 | `OPENCODE_USERS_DIR` | per-user | `~/.local/share/octane/users` | Base folder for per-user OpenCode data. Each user gets a hashed subfolder with sessions, credentials and logs. |
+| `OCTANE_DATA_DIR` | no | `~/.local/share/octane-data` | OCTANE-owned metadata, currently per-session tasks. Compose mounts the `octane-data` volume here. |
 | `OPENCODE_WORKSPACE` | no | current folder | Working directory used by per-user servers. Compose sets `/workspace`. |
 | `OPENCODE_START_TIMEOUT_MS` | no | `45000` | How long to wait for a new per-user server to answer `/api/info`. |
 | `OPENCODE_SERVER_URL` | shared | `http://127.0.0.1:4096` | Upstream OpenCode server used only in `shared` mode. |
@@ -129,7 +130,12 @@ Each user can also connect their own OpenCode Console account from **Settings �
 
 > Password sign-in is a single local identity: everyone who knows the password shares one OpenCode server. Use Discord sign-in when you need one isolated server per person.
 
-### Usage estimates
+### Session tasks
+
+Each session has a persistent task list in the context panel. A task has a **definition** (shown in the list), its own **prompt** (sent to the agent when you press Run), a status and a priority. You can add tasks manually, edit any field, delete them, import the steps from the latest plan agent response, and toggle completion with the status icon.
+
+Running a task sends the definition plus prompt to the build agent, marks it **in progress**, and marks it **completed** when the session becomes idle. A session error or an abort returns it to pending so it can be retried. Tasks are stored per user and session under `OCTANE_DATA_DIR/tasks`; they persist across restarts.
+
 
 The chat landing page and `/usage` aggregate the cost and token totals reported by sessions created during the current month. Set `USAGE_ROLLING_BUDGET_USD`, `USAGE_WEEKLY_BUDGET_USD` and `USAGE_MONTHLY_BUDGET_USD` to turn those totals into limits and a month-end forecast. These are local estimates, not OpenCode Go billing; use the OpenCode Console for exact credits and limits.
 
@@ -140,6 +146,8 @@ The web container mounts `WORKSPACE_PATH` at `/workspace` and shares it with eve
 Skills installed from Settings live in the shared `opencode-skills` volume: OCTANE writes to `/home/nextjs/.config/opencode/skills`, and each per-user server gets that folder linked into its own config directory. The one-shot `skills-init` service prepares both the skills and `opencode-users` volumes for UID `1001` before the web container starts.
 
 Per-user sessions and provider credentials live in the `opencode-users` volume at `/home/nextjs/.local/share/octane/users`. Back it up if you want to keep sessions and connected keys across a full volume reset. Removing it signs every user out of OpenCode Console and deletes their sessions and Anthropic keys.
+
+Per-session tasks live in the `octane-data` volume at `/home/nextjs/.local/share/octane-data`. Back it up together with `opencode-users` and the workspace if you want to keep the task lists.
 
 > Upgrading from a shared server: sessions and credentials in the old `opencode-data` volume are not copied into per-user directories. Users start with an empty session list and reconnect their Anthropic key or OpenCode Console account in Settings.
 
@@ -169,6 +177,7 @@ AUTH_PASSWORD=dev
 OPENCODE_SERVER_MODE=per-user
 OPENCODE_BIN=opencode
 OPENCODE_USERS_DIR=./data/users
+OCTANE_DATA_DIR=./data/octane
 ```
 
 OCTANE starts one `opencode serve` process per signed-in user on first use. There is no separate server to run. To use a single external server instead, set `OPENCODE_SERVER_MODE=shared`, `OPENCODE_SERVER_URL=http://127.0.0.1:4096` and optionally `OPENCODE_SERVER_PASSWORD`, then start it yourself:
@@ -243,7 +252,7 @@ scripts/generate-icons.mjs builds favicons/app icons/manifest icons from assets
 src/app/(app)/             authenticated workspace (chat, files, settings, usage)
 src/app/login/             login screen
 src/app/api/auth/          password login, Discord OAuth, logout, session
-src/app/api/sessions/      session CRUD + prompt/command/shell/abort/fork/summarize/permissions
+src/app/api/sessions/      session CRUD + prompt/command/shell/abort/fork/summarize/permissions + tasks
 src/app/api/files/         directory listing, content, search, VCS status
 src/app/api/events/        authenticated SSE proxy / v2 translator
 src/app/api/integrations/  OpenCode account and provider connections
@@ -254,6 +263,7 @@ src/lib/auth.ts            password verification + JWT sessions + CSRF helpers
 src/lib/discord.ts         OAuth2 exchange + bot role check
 src/lib/harness.ts         OpenCode label helpers
 src/lib/session-service.ts OpenCode session facade
+src/lib/tasks.ts          per-user, per-session task store
 src/lib/tenant.ts          per-request routing to the signed-in user's server
 src/lib/user-servers.ts    isolated OpenCode processes (spawn, reuse, logs)
 src/lib/integrations.ts    OpenCode `/connect` integrations (Anthropic key/OAuth)

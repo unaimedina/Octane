@@ -6,10 +6,11 @@ services:
   skills-init:
     image: alpine:3.20
     user: "0:0"
-    command: ["sh", "-c", "mkdir -p /skills /users && chown -R 1001:1001 /skills && chown 1001:1001 /users"]
+    command: ["sh", "-c", "mkdir -p /skills /users /data && chown -R 1001:1001 /skills && chown 1001:1001 /users /data"]
     volumes:
       - opencode-skills:/skills
       - opencode-users:/users
+      - octane-data:/data
     restart: "no"
 
   # OCTANE authenticates requests and starts one isolated OpenCode server per
@@ -31,6 +32,8 @@ services:
       - opencode-skills:/home/nextjs/.config/opencode/skills
       # Sessions, Anthropic keys and Console logins are isolated per user here.
       - opencode-users:/home/nextjs/.local/share/octane/users
+      # Session tasks and other OCTANE-owned metadata.
+      - octane-data:/home/nextjs/.local/share/octane-data
       # Keep git identity/safe.directory consistent for user servers.
       - ./docker/gitconfig:/home/nextjs/.gitconfig:ro
     environment:
@@ -38,6 +41,8 @@ services:
       OPENCODE_BIN: /usr/local/bin/opencode
       OPENCODE_USERS_DIR: /home/nextjs/.local/share/octane/users
       OPENCODE_WORKSPACE: /workspace
+      # Session tasks and other OCTANE-owned metadata.
+      OCTANE_DATA_DIR: /home/nextjs/.local/share/octane-data
       # Shared mode only. Ignored when OPENCODE_SERVER_MODE=per-user.
       OPENCODE_SERVER_URL: ${OPENCODE_SERVER_URL:-http://127.0.0.1:4096}
       OPENCODE_SERVER_USERNAME: ${OPENCODE_SERVER_USERNAME:-opencode}
@@ -85,6 +90,7 @@ services:
 volumes:
   opencode-skills:
   opencode-users:
+  octane-data:
 
 networks:
   traefik:

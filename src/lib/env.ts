@@ -50,6 +50,13 @@ export function opencodeWorkspace(): string {
   return configured ? path.resolve(configured) : process.cwd();
 }
 
+/** Base folder for OCTANE-owned metadata (tasks and future stores). */
+export function octaneDataDir(): string {
+  const configured = process.env.OCTANE_DATA_DIR?.trim();
+  if (configured) return path.resolve(configured);
+  return path.join(os.homedir(), ".local", "share", "octane-data");
+}
+
 /** Skills installed from Settings, shared by every user's server. */
 export function opencodeSkillsDir(): string | null {
   return process.env.OPENCODE_SKILLS_DIR?.trim() || null;
