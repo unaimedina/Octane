@@ -44,7 +44,9 @@ RUN apk add --no-cache git bash ripgrep ca-certificates libgcc libstdc++
 
 RUN addgroup -S -g 1001 nodejs \
   && adduser -S -u 1001 -G nodejs nextjs \
-  && mkdir -p /home/nextjs/.config/opencode/skills /home/nextjs/.local/share/octane/users \
+  && mkdir -p /home/nextjs/.config/opencode/skills \
+     /home/nextjs/.local/share/octane/users \
+     /home/nextjs/.local/share/octane-data \
   && chown -R nextjs:nodejs /home/nextjs
 
 COPY --from=opencode /usr/local/bin/opencode /usr/local/bin/opencode
