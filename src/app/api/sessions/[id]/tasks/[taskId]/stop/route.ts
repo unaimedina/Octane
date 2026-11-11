@@ -42,7 +42,8 @@ export async function POST(
     }
     const { startedAt, sessionID } = task.run;
 
-    await abortSession(sessionID);
+    // A worker claim has no session yet (sessionID ""); nothing to abort.
+    if (sessionID) await abortSession(sessionID);
 
     const { result } = await mutateTasks<Task>(subject, id, (tasks) => {
       const now = Date.now();
