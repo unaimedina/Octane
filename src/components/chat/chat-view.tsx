@@ -72,6 +72,7 @@ import {
 } from "@/components/ui/select";
 import { apiJson, jsonBody } from "@/lib/api";
 import { derivePlanSteps } from "@/lib/plan-tasks";
+import type { TaskRunnerSettings } from "@/lib/tasks";
 import { buildTranscript } from "@/lib/transcript";
 import type {
   Agent,
@@ -567,6 +568,10 @@ export function ChatView({
     sortMessages(initialMessages),
   );
   const [tasks, setTasks] = React.useState(initialTasks);
+  const [runner, setRunner] = React.useState<TaskRunnerSettings>({
+    autoRun: false,
+    maxParallel: 2,
+  });
   const planSteps = React.useMemo(() => derivePlanSteps(messages), [messages]);
   const pendingPlanSteps = React.useMemo(() => {
     const existing = new Set(
@@ -794,12 +799,13 @@ export function ChatView({
     if (taskRefreshTimer.current) window.clearTimeout(taskRefreshTimer.current);
     taskRefreshTimer.current = window.setTimeout(() => {
       taskRefreshTimer.current = null;
-      void apiJson<Task[] | { tasks: Task[] }>(
+      void apiJson<Task[] | { tasks: Task[]; runner?: TaskRunnerSettings }>(
         `/sessions/${encodeURIComponent(session.id)}/tasks`,
       )
-        .then((result) =>
-          setTasks(Array.isArray(result) ? result : result.tasks),
-        )
+        .then((result) => {
+          setTasks(Array.isArray(result) ? result : result.tasks);
+          if (!Array.isArray(result) && result.runner) setRunner(result.runner);
+        })
         .catch(() => undefined);
     }, 500);
   }, [session.id]);
@@ -826,6 +832,32 @@ export function ChatView({
   const planFilesProp = pendingPlanFiles.length > 0 && planFilePreview.plansDir
     ? { count: pendingPlanFiles.length, dir: planFilePreview.plansDir }
     : undefined;
+
+  // Load the auto-run settings (GET /tasks also re-arms the server ticker).
+  React.useEffect(() => {
+    refreshTasks();
+  }, [refreshTasks]);
+
+  // Poll while tasks run or auto-run is on; workers finish in other sessions.
+  const tasksRunning = tasks.some((task) => task.status === "in_progress");
+  const pollTasks = tasksRunning || runner.autoRun;
+  React.useEffect(() => {
+    if (!pollTasks) return;
+    const timer = window.setInterval(refreshTasks, 5_000);
+    return () => window.clearInterval(timer);
+  }, [pollTasks, refreshTasks]);
+
+  // Refresh as soon as a running task's session changes state.
+  const runStatusKey = tasks
+    .filter((task) => task.status === "in_progress" && task.run?.sessionID)
+    .map((task) => `${task.run?.sessionID}:${statuses[task.run?.sessionID ?? ""]?.type ?? "idle"}`)
+    .join(",");
+  const lastRunStatusKey = React.useRef(runStatusKey);
+  React.useEffect(() => {
+    if (lastRunStatusKey.current === runStatusKey) return;
+    lastRunStatusKey.current = runStatusKey;
+    refreshTasks();
+  }, [runStatusKey, refreshTasks]);
 
   const status =
     statuses[backendSessionID] ??
@@ -1406,6 +1438,90 @@ export function ChatView({
     [busy, buildAgent, model, refreshTasks, scheduleRefresh, session.id],
   );
 
+  const taskModel = React.useMemo(
+    () =>
+      model ? { providerID: model.providerID, modelID: model.modelID } : undefined,
+    [model],
+  );
+
+  const handleRunTaskInWorker = React.useCallback(
+    async (task: Task) => {
+      try {
+        const result = await apiJson<{ task: Task }>(
+          `/sessions/${encodeURIComponent(session.id)}/tasks/${encodeURIComponent(task.id)}/run`,
+          {
+            method: "POST",
+            ...jsonBody({ mode: "worker", agent: buildAgent, model: taskModel }),
+          },
+        );
+        setTasks((current) =>
+          current.map((item) => (item.id === result.task.id ? result.task : item)),
+        );
+      } catch (error) {
+        toast.error("Could not start the worker", {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      }
+      refreshTasks();
+    },
+    [buildAgent, refreshTasks, session.id, taskModel],
+  );
+
+  const patchRunner = React.useCallback(
+    async (patch: Record<string, unknown>) => {
+      const result = await apiJson<{
+        runner: TaskRunnerSettings;
+        tasks: Task[];
+        warning?: string;
+      }>(`/sessions/${encodeURIComponent(session.id)}/tasks/runner`, {
+        method: "PATCH",
+        ...jsonBody(patch),
+      });
+      setRunner(result.runner);
+      setTasks(result.tasks);
+      if (result.warning) {
+        toast.error("Auto-run could not start tasks yet", {
+          description: result.warning,
+        });
+      }
+    },
+    [session.id],
+  );
+
+  const handleToggleAutoRun = React.useCallback(
+    (autoRun: boolean) =>
+      patchRunner(autoRun ? { autoRun, model: taskModel ?? null } : { autoRun }),
+    [patchRunner, taskModel],
+  );
+
+  const handleMaxParallelChange = React.useCallback(
+    (maxParallel: number) => patchRunner({ maxParallel }),
+    [patchRunner],
+  );
+
+  const handleDismissStalled = React.useCallback(() => {
+    setRunner((current) => ({ ...current, stalled: undefined }));
+    void patchRunner({ stalled: null }).catch(() => undefined);
+  }, [patchRunner]);
+
+  const handleRunReady = React.useCallback(async () => {
+    const result = await apiJson<{
+      started: string[];
+      tasks: Task[];
+      runner: TaskRunnerSettings;
+    }>(`/sessions/${encodeURIComponent(session.id)}/tasks/schedule`, {
+      method: "POST",
+      ...jsonBody({ agent: buildAgent, model: taskModel }),
+    });
+    setTasks(result.tasks);
+    setRunner(result.runner);
+    if (result.started.length === 0) {
+      toast.message("No task could start", {
+        description: "Every worker slot is busy or nothing is ready.",
+      });
+    }
+  }, [buildAgent, session.id, taskModel]);
+
   const handleStopTask = React.useCallback(
     async (task: Task) => {
       try {
@@ -1855,6 +1971,12 @@ export function ChatView({
             hasRepo={hasRepo}
             planSteps={pendingPlanSteps.length}
             onRunTask={handleRunTask}
+            onRunTaskInWorker={handleRunTaskInWorker}
+            runner={runner}
+            onToggleAutoRun={handleToggleAutoRun}
+            onRunReady={handleRunReady}
+            onMaxParallelChange={handleMaxParallelChange}
+            onDismissStalled={handleDismissStalled}
             onStopTask={handleStopTask}
             onCreateTask={createTask}
             onUpdateTask={updateTask}
@@ -1879,6 +2001,12 @@ export function ChatView({
             hasRepo={hasRepo}
             planSteps={pendingPlanSteps.length}
             onRunTask={handleRunTask}
+            onRunTaskInWorker={handleRunTaskInWorker}
+            runner={runner}
+            onToggleAutoRun={handleToggleAutoRun}
+            onRunReady={handleRunReady}
+            onMaxParallelChange={handleMaxParallelChange}
+            onDismissStalled={handleDismissStalled}
             onStopTask={handleStopTask}
             onCreateTask={createTask}
             onUpdateTask={updateTask}

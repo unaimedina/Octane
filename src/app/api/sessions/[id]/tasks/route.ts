@@ -1,8 +1,10 @@
 import type { NextRequest } from "next/server";
 import { guard, failure, jsonBody, noStoreJson } from "@/lib/bff";
+import { ensureAutoRun } from "@/lib/task-autorun";
 import { reconcileTasks } from "@/lib/task-runner";
 import {
   createTask,
+  getRunner,
   TaskConflictError,
   TaskNotFoundError,
   TaskValidationError,
@@ -33,7 +35,11 @@ export async function GET(
   if (auth.error) return auth.error;
   try {
     const { id } = await context.params;
-    return noStoreJson({ tasks: await reconcileTasks(auth.session.subject, id) });
+    const tasks = await reconcileTasks(auth.session.subject, id);
+    const runner = await getRunner(auth.session.subject, id);
+    // Re-arm the auto-run ticker after a server restart.
+    if (runner.autoRun) ensureAutoRun(auth.session, id);
+    return noStoreJson({ tasks, runner });
   } catch (error) {
     return taskFailure(error);
   }

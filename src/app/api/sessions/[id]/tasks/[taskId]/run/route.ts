@@ -4,6 +4,7 @@ import { promptSession, getSessionStatuses } from "@/lib/session-service";
 import { isReady, waitingOn } from "@/lib/task-graph";
 import { buildTaskRunText } from "@/lib/task-prompt";
 import { reconcileTasks } from "@/lib/task-runner";
+import { startWorker } from "@/lib/task-workers";
 import {
   mutateTasks,
   TaskConflictError,
@@ -16,6 +17,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RunBody = {
+  /** "session" (default) runs in this chat; "worker" in a new session. */
+  mode?: "session" | "worker";
   agent?: string;
   model?: { providerID: string; modelID: string };
 };
@@ -67,8 +70,19 @@ export async function POST(
         ? { providerID: body.model.providerID, modelID: body.model.modelID }
         : undefined;
 
+    if (body.mode !== undefined && body.mode !== "session" && body.mode !== "worker") {
+      throw new TaskValidationError('mode must be "session" or "worker".');
+    }
+
     // 1. Settle anything that finished while nobody was looking.
     const current = await reconcileTasks(subject, id);
+
+    if (body.mode === "worker") {
+      // Readiness and the parallel limit are checked under the store lock.
+      const task = await startWorker(subject, id, taskId, { agent, model });
+      return noStoreJson({ task });
+    }
+
     const target = current.find((task) => task.id === taskId);
     if (!target) throw new TaskNotFoundError();
 
