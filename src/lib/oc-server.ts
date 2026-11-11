@@ -937,13 +937,22 @@ export async function getFileTree(path?: string): Promise<FileNode[]> {
     if ((await apiFlavor()) === "v2") {
       const query = path ? `?path=${encodeURIComponent(path)}` : "";
       const result = await upstreamJson<Raw>(`/api/fs/list${query}`);
+      const base = (
+        str(raw(result.location).directory) ||
+        (await getPathInfo())?.directory ||
+        ""
+      ).trim();
       return arr(result.data).map((value) => {
         const entry = raw(value);
         const entryPath = str(entry.path).replace(/\\/g, "/").replace(/\/+$/, "");
+        const isAbsolute = entryPath.startsWith("/") || /^[A-Za-z]:\//.test(entryPath);
         return {
           name: entryPath.split("/").filter(Boolean).pop() ?? entryPath,
           path: entryPath,
-          absolute: entryPath,
+          absolute:
+            isAbsolute || !base
+              ? entryPath
+              : resolveDirectoryPath(entryPath, base).replace(/\\/g, "/"),
           type: str(entry.type) === "directory" ? "directory" : "file",
           ignored: false,
         } as FileNode;
