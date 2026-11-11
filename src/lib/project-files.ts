@@ -170,7 +170,7 @@ function etagOf(bytes: Uint8Array): string {
 async function agentsPath(root: string): Promise<string> {
   const entries = await fs.readdir(root);
   const found = entries.find((entry) => entry.toLowerCase() === "agents.md");
-  return path.join(root, found ?? "AGENTS.md");
+  return path.join(/* turbopackIgnore: true */ root, found ?? "AGENTS.md");
 }
 
 async function readAgentsAt(file: string): Promise<ProjectAgentsFile> {

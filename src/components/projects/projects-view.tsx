@@ -157,7 +157,7 @@ export function ProjectsView({
           <div>
             <h1 className="text-2xl font-semibold tracking-[-0.02em]">Projects</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Group sessions by folder and keep shared context for every chat.
+              Group sessions by folder and share an AGENTS.md with every chat.
             </p>
           </div>
           <Button onClick={openCreate} className="brand-glow gap-2">
@@ -294,15 +294,11 @@ export function ProjectsView({
                       {project.directory}
                     </div>
 
-                    {project.context ? (
+                    {project.description ? (
                       <p className="line-clamp-2 whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
-                        {project.context}
+                        {project.description}
                       </p>
-                    ) : (
-                      <p className="text-[11px] italic text-muted-foreground/60">
-                        No global context yet.
-                      </p>
-                    )}
+                    ) : null}
 
                     <div className="mt-auto flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
                       {project.github ? (
@@ -368,8 +364,7 @@ export function ProjectsView({
             <AlertDialogTitle>Delete this project?</AlertDialogTitle>
             <AlertDialogDescription>
               “{deleteTarget?.name}” will be removed from this workspace. Sessions
-              and files are not deleted; only the project grouping and its context
-              are removed.
+              and files are not deleted; only the project grouping is removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

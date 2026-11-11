@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
+import { ProjectAgentsCard } from "@/components/projects/project-agents-card";
 import { ProjectDialog } from "@/components/projects/project-dialog";
+import { ProjectFilesCard } from "@/components/projects/project-files-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +57,7 @@ export function ProjectDetail({
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [creating, setCreating] = React.useState(false);
+  const [reloadKey, setReloadKey] = React.useState(0);
 
   const related = React.useMemo(
     () =>
@@ -154,42 +157,16 @@ export function ProjectDetail({
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-sm">Global context</CardTitle>
-                    <CardDescription className="text-xs">
-                      Sent to new sessions created from this project.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Edit project context"
-                    onClick={() => setEditing(true)}
-                  >
-                    <Pencil className="size-3" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {project.context ? (
-                  <pre className="scrollbar-thin max-h-56 overflow-auto whitespace-pre-wrap rounded-[10px] border border-border/60 bg-muted/20 p-3 font-sans text-xs leading-relaxed">
-                    {project.context}
-                  </pre>
-                ) : (
-                  <p className="text-xs italic text-muted-foreground">
-                    No global context yet. Edit the project to add instructions
-                    every new chat should start with.
-                  </p>
-                )}
-                <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-                  Context is copied into a session when it is created. Editing the
-                  project does not rewrite existing sessions.
-                </p>
-              </CardContent>
-            </Card>
+            <ProjectAgentsCard
+              project={project}
+              reloadKey={reloadKey}
+              onProjectChange={setProject}
+            />
+
+            <ProjectFilesCard
+              project={project}
+              onChanged={() => setReloadKey((key) => key + 1)}
+            />
 
             <Card>
               <CardHeader>
@@ -327,7 +304,7 @@ export function ProjectDetail({
             <AlertDialogTitle>Delete this project?</AlertDialogTitle>
             <AlertDialogDescription>
               “{project.name}” will be removed. Sessions and files are not
-              deleted; only the project grouping and its context are removed.
+              deleted; only the project grouping is removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
