@@ -37,6 +37,8 @@ type AppDataValue = {
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
+  /** Hide sessions (e.g. task workers) from the session lists. */
+  hideSessions: (ids: string[]) => void;
   respondPermission: (permission: Permission, response: "once" | "always" | "reject") => Promise<void>;
   subscribe: (handler: (event: Event) => void) => () => void;
 };
@@ -102,10 +104,8 @@ export function AppDataProvider({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const hidden = React.useMemo(
-    () => new Set(hiddenSessionIds),
-    [hiddenSessionIds],
-  );
+  // A ref, so learning about new hidden sessions never reconnects the event streams.
+  const hiddenRef = React.useRef(new Set(hiddenSessionIds));
   const [sessions, setSessions] = React.useState(() => sortSessions(initialSessions));
   const [statuses, setStatuses] = React.useState(initialStatuses);
   const [pendingPermissions, setPendingPermissions] = React.useState<Permission[]>([]);
@@ -117,6 +117,19 @@ export function AppDataProvider({
     return () => {
       handlers.current.delete(handler);
     };
+  }, []);
+
+  const hideSessions = React.useCallback((ids: string[]) => {
+    let added = false;
+    for (const id of ids) {
+      if (!hiddenRef.current.has(id)) {
+        hiddenRef.current.add(id);
+        added = true;
+      }
+    }
+    if (added) {
+      setSessions((current) => current.filter((item) => !hiddenRef.current.has(item.id)));
+    }
   }, []);
 
   const refreshSessions = React.useCallback(async () => {
@@ -147,7 +160,7 @@ export function AppDataProvider({
         case "session.created":
         case "session.updated": {
           const incoming = event.properties.info ?? event.properties;
-          if (incoming?.id && hidden.has(incoming.id)) break;
+          if (incoming?.id && hiddenRef.current.has(incoming.id)) break;
           setSessions((current) => upsertSession(current, incoming));
           break;
         }
@@ -252,7 +265,7 @@ export function AppDataProvider({
       for (const source of sources) source.close();
       window.removeEventListener("focus", onFocus);
     };
-  }, [refreshSessions, hidden]);
+  }, [refreshSessions]);
 
   const createSession = React.useCallback(
     async (options?: { title?: string; directory?: string }) => {
@@ -326,6 +339,7 @@ export function AppDataProvider({
       renameSession,
       deleteSession,
       refreshSessions,
+      hideSessions,
       respondPermission,
       subscribe,
     }),
@@ -348,6 +362,7 @@ export function AppDataProvider({
       renameSession,
       deleteSession,
       refreshSessions,
+      hideSessions,
       respondPermission,
       subscribe,
     ],

@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { guard, failure, jsonBody, noStoreJson } from "@/lib/bff";
-import { createSession, getSessions } from "@/lib/session-service";
+import { createSession, getHiddenSessionIds, getSessions } from "@/lib/session-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +9,12 @@ export async function GET(request: NextRequest) {
   const auth = await guard(request);
   if (auth.error) return auth.error;
   try {
-    return noStoreJson(await getSessions());
+    const [sessions, hiddenIds] = await Promise.all([
+      getSessions(),
+      getHiddenSessionIds(auth.session.subject),
+    ]);
+    const hidden = new Set(hiddenIds);
+    return noStoreJson(sessions.filter((item) => !hidden.has(item.id)));
   } catch (error) {
     return failure(error);
   }

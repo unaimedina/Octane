@@ -41,8 +41,9 @@ export default async function WorkspaceLayout({
     getAgents(),
     getSkills(),
     getSessionStatuses(),
-    getHiddenSessionIds(),
+    getHiddenSessionIds(session.subject),
   ]);
+  const hiddenSet = new Set(hiddenSessionIds);
 
   const usage = buildUsageSummary(sessions, {
     rollingBudget: parseBudget(process.env.USAGE_ROLLING_BUDGET_USD),
@@ -52,7 +53,7 @@ export default async function WorkspaceLayout({
 
   return (
     <AppDataProvider
-      initialSessions={sessions}
+      initialSessions={sessions.filter((item) => !hiddenSet.has(item.id))}
       initialModels={providers.models}
       initialDefaultModel={providers.defaultModel}
       initialAgents={agents}
