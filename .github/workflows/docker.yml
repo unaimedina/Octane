@@ -23,7 +23,7 @@ jobs:
   docker:
     name: Build and publish
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -60,14 +60,14 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      # PRs build amd64 only and never push.
-      # master, version tags and manual runs publish the final multi-arch image.
+      # Every run builds both architectures (the app is compiled once on the
+      # runner's platform; only sharp is installed per target). PRs never push.
       - name: Build and push final image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -1,15 +1,35 @@
-node_modules
-.next
+# Dependencies and build output (at any depth, e.g. agent worktrees)
+**/node_modules
+**/.next
+coverage
+*.tsbuildinfo
+npm-debug.log*
+
+# VCS, CI and editor/agent state
 .git
 .gitignore
+.github
+.claude
+.vscode
+.idea
+
+# Planning docs (not part of the app)
+plans
+advisor-plans
+
+# Docker files themselves
 Dockerfile
+.dockerignore
 docker-compose.yml
+
+# Docs and README-only assets
 README.md
 AGENTS.md
+assets/readme
+
+# Secrets and local data: never send to the builder
 .env
 .env.*
+*.pem
 data
-
-npm-debug.log*
-*.tsbuildinfo
-coverage
+workspace
