@@ -263,6 +263,20 @@ export type Project = {
   updatedAt: number;
 };
 
+export type ProjectAgentsFile = {
+  exists: boolean;
+  content: string;
+  etag: string; // sha256 prefix of the bytes, or "missing"
+  path: string;
+};
+
+export type ProjectContextFile = {
+  name: string;
+  size: number;
+  updatedAt: number;
+  mime: string;
+};
+
 export type ProjectInput = {
   name: string;
   description?: string;
