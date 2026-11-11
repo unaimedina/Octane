@@ -137,11 +137,19 @@ Each user can also connect their own OpenCode Console account from **Settings â†
 
 ### Projects
 
-**Projects** groups sessions around an absolute folder inside the OpenCode environment. Each project stores a name, description, local directory, and an optional global context string. Sessions created from a project page run in that directory and receive the context as a synthetic "Project context" message; editing the context does not rewrite existing sessions.
+**Projects** groups sessions around an absolute folder inside the OpenCode environment. Each project stores a name, description and local directory. Sessions created from a project page run in that directory.
 
-Sessions created from the normal New chat screen with the same folder appear in the project's session list by directory, but they do not automatically receive the project context. This is deliberate in v1.
+`<directory>/AGENTS.md` is the single source of project instructions. OpenCode reads it on every turn for every session in that folder, no matter where the session was started. Edit it from the project page in the **AGENTS.md** card. The editor detects conflicts: if the file changed on disk (the agent or git edited it), saving shows a conflict with **Reload** and **Overwrite** instead of silently overwriting.
 
-Deleting a project removes only the project metadata. Sessions, messages and files are never deleted; the project grouping and its context are. Projects work in OpenCode v2 mode, where sessions can be created with a location. In v1, project CRUD works but creating a project session returns a clear error instead of running the chat outside the folder.
+**Context files** are reference material for the agent: specs, data, notes, images. Uploads are stored in `<directory>/.octane/context/` and listed in an OCTANE-managed block of `AGENTS.md` between `<!-- BEGIN:octane-context-files -->` and `<!-- END:octane-context-files -->`. Text outside the markers belongs to you. Limits: 5 MB per file, 50 files, 50 MB per project. Allowed extensions: `.md .txt .json .yaml .yml .csv .xml .html .css .js .ts .tsx .jsx .lua .py .sql .png .jpg .jpeg .webp .gif .pdf`. Add `.octane/` to the project's `.gitignore` if you don't want uploaded files committed. OCTANE never edits your `.gitignore`.
+
+Projects created before this change may still have legacy global context. They show a **Move into AGENTS.md** button, which appends the text to `AGENTS.md` and clears it from the project. Until you press it, new project sessions still get the legacy "Project context" message.
+
+AGENTS.md and context files need the folder to be reachable from the OCTANE server (per-user mode, or shared mode on the same filesystem). Otherwise the page shows:
+
+> This project's folder isn't reachable from the OCTANE server. AGENTS.md and context files need the per-user server mode, or a shared mode server that uses the same filesystem.
+
+Deleting a project removes only the project metadata. Sessions, messages and files are never deleted; only the project grouping is. `AGENTS.md` and context files stay in the folder. Projects work in OpenCode v2 mode, where sessions can be created with a location. In v1, project CRUD works but creating a project session returns a clear error instead of running the chat outside the folder.
 
 Project metadata lives in `OCTANE_DATA_DIR/projects/<hash>.json`, one file per signed-in subject.
 
@@ -195,7 +203,7 @@ Skills installed from Settings live in the shared `opencode-skills` volume: OCTA
 
 Per-user sessions and provider credentials live in the `opencode-users` volume at `/home/nextjs/.local/share/octane/users`. Back it up if you want to keep sessions and connected keys across a full volume reset. Removing it signs every user out of OpenCode Console and deletes their sessions and Anthropic keys.
 
-Project metadata, encrypted GitHub tokens and session tasks live in the `octane-data` volume at `/home/nextjs/.local/share/octane-data`. Back it up together with `opencode-users` and the workspace. The directory is created with restrictive permissions, and token and task files are written with mode `0600`. If the volume is lost, projects, repository links and task lists are lost; sessions and files are not.
+Project metadata, encrypted GitHub tokens and session tasks live in the `octane-data` volume at `/home/nextjs/.local/share/octane-data`. Back it up together with `opencode-users` and the workspace. AGENTS.md and context files live in the project folder inside the workspace, not in `octane-data`, so back them up with the workspace. The directory is created with restrictive permissions, and token and task files are written with mode `0600`. If the volume is lost, projects, repository links and task lists are lost; sessions and files are not.
 
 > Upgrading from a shared server: sessions and credentials in the old `opencode-data` volume are not copied into per-user directories. Users start with an empty session list and reconnect their Anthropic key or OpenCode Console account in Settings.
 
@@ -317,6 +325,8 @@ src/lib/discord.ts         OAuth2 exchange + bot role check
 src/lib/github.ts          GitHub OAuth exchange and repository API
 src/lib/github-store.ts    encrypted GitHub connection store
 src/lib/projects.ts        per-user project JSON store
+src/lib/project-files.ts   AGENTS.md and context files on disk (gate, limits, containment)
+src/lib/agents-block.ts    managed context-files block in AGENTS.md
 src/lib/project-paths.ts   client-safe project path helpers
 src/lib/harness.ts         OpenCode label helpers
 src/lib/session-service.ts OpenCode session facade

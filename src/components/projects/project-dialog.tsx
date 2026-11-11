@@ -15,12 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { apiJson, jsonBody } from "@/lib/api";
 import { isAbsoluteProjectDirectory } from "@/lib/project-paths";
 import type { GithubStatus, Project } from "@/lib/types";
-
-const MAX_CONTEXT = 20_000;
 
 export function ProjectDialog({
   open,
@@ -44,7 +41,6 @@ export function ProjectDialog({
   const [directory, setDirectory] = React.useState(
     project?.directory ?? defaultDirectory ?? "",
   );
-  const [context, setContext] = React.useState(project?.context ?? "");
   const [selectedRepo, setSelectedRepo] = React.useState<string | undefined>(
     project?.github?.repo,
   );
@@ -53,11 +49,7 @@ export function ProjectDialog({
   const [error, setError] = React.useState<string | null>(null);
 
   const directoryValid = isAbsoluteProjectDirectory(directory);
-  const canSave =
-    name.trim().length > 0 &&
-    directoryValid &&
-    context.length <= MAX_CONTEXT &&
-    !saving;
+  const canSave = name.trim().length > 0 && directoryValid && !saving;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,10 +59,6 @@ export function ProjectDialog({
     }
     if (!directoryValid) {
       setError("Choose an absolute folder path.");
-      return;
-    }
-    if (context.length > MAX_CONTEXT) {
-      setError("Project context is too long.");
       return;
     }
 
@@ -88,7 +76,6 @@ export function ProjectDialog({
       name: name.trim(),
       description: description.trim(),
       directory: directory.trim(),
-      context,
       ...(githubPatch !== undefined ? { github: githubPatch } : {}),
     };
 
@@ -119,8 +106,8 @@ export function ProjectDialog({
           <DialogHeader>
             <DialogTitle>{project ? "Edit project" : "New project"}</DialogTitle>
             <DialogDescription>
-              Group sessions around one folder and keep shared instructions for
-              every new chat.
+              Group sessions around one folder. Shared instructions live in the
+              folder&apos;s AGENTS.md.
             </DialogDescription>
           </DialogHeader>
 
@@ -183,31 +170,6 @@ export function ProjectDialog({
                   Choose an absolute folder to continue.
                 </p>
               ) : null}
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label htmlFor="project-context" className="text-xs font-medium">
-                  Global context{" "}
-                  <span className="font-normal text-muted-foreground">optional</span>
-                </label>
-                <span className="font-mono text-[10px] text-muted-foreground/60">
-                  {context.length.toLocaleString("en-US")} /{" "}
-                  {MAX_CONTEXT.toLocaleString("en-US")}
-                </span>
-              </div>
-              <Textarea
-                id="project-context"
-                value={context}
-                onChange={(event) => setContext(event.target.value)}
-                placeholder="Useful instructions, conventions or background for every new session in this project."
-                className="min-h-28"
-                maxLength={MAX_CONTEXT}
-              />
-              <p className="text-[10px] leading-relaxed text-muted-foreground">
-                Added as a synthetic message to sessions created from this
-                project. Existing sessions keep their original context.
-              </p>
             </div>
 
             <div className="space-y-1.5">
