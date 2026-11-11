@@ -42,26 +42,26 @@ export function FolderPicker({
 
   const load = React.useCallback(
     async (target: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const absolute = resolveAgainst(root, target.trim()) || target.trim();
-      const entries = await apiJson<FileNode[]>(
-        `/files${absolute ? `?path=${encodeURIComponent(absolute)}` : ""}`,
-      );
-      setDirectories(entries.filter((entry) => entry.type === "directory"));
-      setPath(absolute);
-    } catch (cause) {
-      setDirectories([]);
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not list that folder.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  },
+      setLoading(true);
+      setError(null);
+      try {
+        const absolute = resolveAgainst(root, target.trim()) || target.trim();
+        const entries = await apiJson<FileNode[]>(
+          `/files${absolute ? `?path=${encodeURIComponent(absolute)}` : ""}`,
+        );
+        setDirectories(entries.filter((entry) => entry.type === "directory"));
+        setPath(absolute);
+      } catch (cause) {
+        setDirectories([]);
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Could not list that folder.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
     [root],
   );
 
@@ -153,7 +153,9 @@ export function FolderPicker({
                 const last = index === all.length - 1;
                 return (
                   <React.Fragment key={segment.path}>
-                    {index > 1 ? <span aria-hidden>/</span> : null}
+                    {index > 0 && all[index - 1].label !== "/" ? (
+                      <span aria-hidden>/</span>
+                    ) : null}
                     {last ? (
                       <span className="break-all px-0.5 text-foreground">{segment.label}</span>
                     ) : (

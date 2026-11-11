@@ -936,11 +936,12 @@ export async function getFileTree(path?: string): Promise<FileNode[]> {
   try {
     if ((await apiFlavor()) === "v2") {
       const query = path ? `?path=${encodeURIComponent(path)}` : "";
-      const [result, info] = await Promise.all([
-        upstreamJson<Raw>(`/api/fs/list${query}`),
-        getPathInfo(),
-      ]);
-      const base = info?.directory?.trim() ?? "";
+      const result = await upstreamJson<Raw>(`/api/fs/list${query}`);
+      const base = (
+        str(raw(result.location).directory) ||
+        (await getPathInfo())?.directory ||
+        ""
+      ).trim();
       return arr(result.data).map((value) => {
         const entry = raw(value);
         const entryPath = str(entry.path).replace(/\\/g, "/").replace(/\/+$/, "");
