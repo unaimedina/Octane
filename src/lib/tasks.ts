@@ -2,9 +2,17 @@ import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { octaneDataDir } from "./env";
+import {
+  removeDependency,
+  TaskConflictError,
+  TaskValidationError,
+  validateDependencies,
+} from "./task-graph";
 import type { Task, TaskInput, TaskPriority, TaskStatus } from "./types";
 
-const STORE_VERSION = 1;
+export { TaskConflictError, TaskValidationError };
+
+const STORE_VERSION = 2;
 const MAX_TITLE = 500;
 const MAX_DESCRIPTION = 20_000;
 const MAX_PROMPT = 20_000;
@@ -14,6 +22,7 @@ const STATUSES: TaskStatus[] = [
   "pending",
   "in_progress",
   "completed",
+  "blocked",
   "cancelled",
 ];
 const PRIORITIES: TaskPriority[] = ["high", "medium", "low"];
@@ -23,15 +32,6 @@ type TaskStore = {
   sessionID: string;
   tasks: Task[];
 };
-
-export class TaskValidationError extends Error {
-  readonly status = 400;
-
-  constructor(message: string) {
-    super(message);
-    this.name = "TaskValidationError";
-  }
-}
 
 export class TaskNotFoundError extends Error {
   readonly status = 404;
@@ -102,19 +102,22 @@ async function readStore(subject: string, sessionID: string): Promise<TaskStore>
   } catch {
     throw new Error("The tasks file is not valid JSON. Fix or restore it before retrying.");
   }
-  if (!isRecord(parsed) || parsed.version !== STORE_VERSION) {
+  if (
+    !isRecord(parsed) ||
+    (parsed.version !== 1 && parsed.version !== STORE_VERSION)
+  ) {
     throw new Error(
-      `Unsupported tasks file version. Expected version ${STORE_VERSION}.`,
+      `Unsupported tasks file version. Expected version ${STORE_VERSION} or older.`,
     );
   }
   if (!Array.isArray(parsed.tasks)) {
     throw new Error("The tasks file is missing its task list.");
   }
-  return {
-    version: STORE_VERSION,
-    sessionID,
-    tasks: parsed.tasks as Task[],
-  };
+  // v1 tasks have no dependsOn. Migrate in memory; the next write persists v2.
+  const tasks = (parsed.tasks as Task[]).map((task) =>
+    Array.isArray(task.dependsOn) ? task : { ...task, dependsOn: [] },
+  );
+  return { version: STORE_VERSION, sessionID, tasks };
 }
 
 async function writeStore(subject: string, sessionID: string, store: TaskStore): Promise<void> {
@@ -193,8 +196,12 @@ function buildTask(
   sessionID: string,
   input: TaskInput,
   now: number,
+  existing: Task[] = [],
 ): Task {
   const status = parseStatus(input.status);
+  if (status === "in_progress") {
+    throw new TaskValidationError("A task can only be started with Run.");
+  }
   return {
     id: `tsk_${randomBytes(12).toString("base64url")}`,
     sessionID,
@@ -203,6 +210,7 @@ function buildTask(
     prompt: parsePrompt(input.prompt),
     status,
     priority: parsePriority(input.priority),
+    dependsOn: validateDependencies(null, input.dependsOn, existing),
     createdAt: now,
     updatedAt: now,
     ...(status === "completed" ? { completedAt: now } : {}),
@@ -219,10 +227,9 @@ export async function createTask(
   sessionID: string,
   input: TaskInput,
 ): Promise<Task> {
-  const now = Date.now();
-  const task = buildTask(sessionID, input, now);
   return withStoreLock(lockKey(subject, sessionID), async () => {
     const store = await readStore(subject, sessionID);
+    const task = buildTask(sessionID, input, Date.now(), store.tasks);
     store.tasks.push(task);
     await writeStore(subject, sessionID, store);
     return task;
@@ -242,6 +249,13 @@ export async function updateTask(
     const current = store.tasks[index];
     const now = Date.now();
     const status = input.status === undefined ? current.status : parseStatus(input.status);
+    if (current.status === "in_progress") {
+      if (status !== "cancelled") {
+        throw new TaskConflictError("Task is running. Stop it first.", "running");
+      }
+    } else if (status === "in_progress") {
+      throw new TaskValidationError("A task can only be started with Run.");
+    }
     const next: Task = {
       ...current,
       title: input.title === undefined ? current.title : parseTitle(input.title),
@@ -255,8 +269,20 @@ export async function updateTask(
         input.priority === undefined
           ? current.priority
           : parsePriority(input.priority),
+      dependsOn:
+        input.dependsOn === undefined
+          ? current.dependsOn
+          : validateDependencies(taskID, input.dependsOn, store.tasks),
       updatedAt: now,
     };
+    if (status === "cancelled" && current.status === "in_progress" && current.run) {
+      next.run = {
+        ...current.run,
+        endedAt: now,
+        outcome: "aborted",
+        summary: "Cancelled while running.",
+      };
+    }
     if (status === "completed") {
       next.completedAt = current.completedAt ?? now;
     } else {
@@ -275,8 +301,33 @@ export async function deleteTask(
 ): Promise<void> {
   await withStoreLock(lockKey(subject, sessionID), async () => {
     const store = await readStore(subject, sessionID);
-    store.tasks = store.tasks.filter((task) => task.id !== taskID);
+    store.tasks = removeDependency(
+      store.tasks.filter((task) => task.id !== taskID),
+      taskID,
+    );
     await writeStore(subject, sessionID, store);
+  });
+}
+
+/**
+ * Read-modify-write inside the store lock with a single write. `fn` may mutate
+ * the array in place or return a replacement. Internal helper for the task
+ * runner and the run/stop routes.
+ */
+export async function mutateTasks<T = undefined>(
+  subject: string,
+  sessionID: string,
+  fn: (tasks: Task[]) => { tasks?: Task[]; result?: T } | void,
+): Promise<{ tasks: Task[]; result: T | undefined }> {
+  return withStoreLock(lockKey(subject, sessionID), async () => {
+    const store = await readStore(subject, sessionID);
+    const output = fn(store.tasks);
+    if (output?.tasks) store.tasks = output.tasks;
+    await writeStore(subject, sessionID, store);
+    return {
+      tasks: [...store.tasks].sort((a, b) => a.createdAt - b.createdAt),
+      result: output?.result,
+    };
   });
 }
 
@@ -319,7 +370,7 @@ export async function importTasks(
         skipped += 1;
         continue;
       }
-      const task = buildTask(sessionID, input, now);
+      const task = buildTask(sessionID, { ...input, dependsOn: [] }, now);
       seen.add(key);
       store.tasks.push(task);
       added.push(task);
