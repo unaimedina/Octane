@@ -50,6 +50,22 @@ export function opencodeWorkspace(): string {
   return configured ? path.resolve(configured) : process.cwd();
 }
 
+/** Base folder for OCTANE-owned metadata (projects, GitHub connections). */
+export function octaneDataDir(): string {
+  const configured = process.env.OCTANE_DATA_DIR?.trim();
+  if (configured) return path.resolve(configured);
+  return path.join(os.homedir(), ".local", "share", "octane-data");
+}
+
+/** GitHub OAuth App is optional; without it local projects still work. */
+export function githubConfigured(): boolean {
+  return Boolean(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET);
+}
+
+export function githubScopes(): string {
+  return process.env.GITHUB_SCOPES?.trim() || "read:user repo";
+}
+
 /** Skills installed from Settings, shared by every user's server. */
 export function opencodeSkillsDir(): string | null {
   return process.env.OPENCODE_SKILLS_DIR?.trim() || null;
