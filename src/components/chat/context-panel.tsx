@@ -1,12 +1,16 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Check,
+  ChevronDown,
   Circle,
   CircleDot,
   CircleX,
   Copy,
+  ExternalLink,
+  FastForward,
   GitCompareArrows,
   GitMerge,
   ListPlus,
@@ -36,9 +40,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isReady, readyTasks, waitingOn } from "@/lib/task-graph";
+import type { TaskRunnerSettings } from "@/lib/tasks";
 import type { FileDiff, Task, TaskInput, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +75,7 @@ function TaskRow({
   byId,
   busy,
   onRun,
+  onRunWorker,
   onStop,
   onEdit,
   onDelete,
@@ -68,6 +87,7 @@ function TaskRow({
   byId: Map<string, Task>;
   busy?: boolean;
   onRun?: (task: Task) => void;
+  onRunWorker?: (task: Task) => void;
   onStop?: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
@@ -104,6 +124,8 @@ function TaskRow({
     .map((value) => `#${value}`)
     .join(", ");
   const showOutcome = task.run?.outcome && task.status !== "in_progress";
+  const workerID =
+    task.run?.mode === "worker" && task.run.sessionID ? task.run.sessionID : "";
 
   const toggleStatus = () => {
     if (task.status === "in_progress") return;
@@ -197,6 +219,16 @@ function TaskRow({
             ) : null}
           </div>
         ) : null}
+        {workerID ? (
+          <Link
+            href={`/chat/${encodeURIComponent(workerID)}`}
+            className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] text-info hover:underline"
+            title={`Worker session ${workerID}`}
+          >
+            <span className="min-w-0 truncate">Open worker</span>
+            <ExternalLink className="size-2.5 shrink-0" />
+          </Link>
+        ) : null}
       </div>
 
       <div className="mt-0.5 flex shrink-0 items-center">
@@ -226,11 +258,38 @@ function TaskRow({
                   ? `Waiting on ${waiting.join(", ")}`
                   : busy
                     ? "Wait for the current turn"
-                    : "Run this task"
+                    : "Run in this chat"
             }
           >
             <Play className="size-3" />
           </Button>
+        ) : null}
+        {task.status !== "in_progress" && onRunWorker ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="-ml-1 w-3.5 text-muted-foreground"
+                disabled={waiting.length > 0}
+                aria-label={`More ways to run: ${task.title}`}
+                title="More ways to run"
+              >
+                <ChevronDown className="size-2.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => onRun?.(task)}
+                disabled={busy || !onRun}
+              >
+                <Play className="size-3.5" /> Run in this chat
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onRunWorker(task)}>
+                <FastForward className="size-3.5" /> Run in a worker
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
         <Button
           variant="ghost"
@@ -257,6 +316,138 @@ function TaskRow({
         </Button>
       </div>
     </li>
+  );
+}
+
+function TaskRunnerToolbar({
+  runner,
+  running,
+  ready,
+  onToggleAutoRun,
+  onRunReady,
+  onMaxParallelChange,
+  onDismissStalled,
+}: {
+  runner: TaskRunnerSettings;
+  running: number;
+  ready: number;
+  onToggleAutoRun?: (autoRun: boolean) => Promise<void>;
+  onRunReady?: () => Promise<void>;
+  onMaxParallelChange?: (maxParallel: number) => Promise<void>;
+  onDismissStalled?: () => void;
+}) {
+  const [pending, setPending] = React.useState<"auto" | "ready" | null>(null);
+
+  async function act(kind: "auto" | "ready", fn: () => Promise<void>) {
+    if (pending) return;
+    setPending(kind);
+    try {
+      await fn();
+    } catch (error) {
+      toast.error(
+        kind === "auto" ? "Could not change auto-run" : "Could not start tasks",
+        { description: error instanceof Error ? error.message : undefined },
+      );
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <div className="space-y-1.5 border-b border-border/50 px-2 py-2">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Button
+          variant={runner.autoRun ? "secondary" : "outline"}
+          size="xs"
+          aria-pressed={runner.autoRun}
+          disabled={pending !== null || !onToggleAutoRun}
+          onClick={() => {
+            if (onToggleAutoRun) void act("auto", () => onToggleAutoRun(!runner.autoRun));
+          }}
+          title={
+            runner.autoRun
+              ? "Stop starting new tasks (running ones continue)"
+              : "Keep starting ready tasks until the list is done"
+          }
+          className="shrink-0"
+        >
+          {pending === "auto" ? (
+            <Loader2 className="animate-spin" />
+          ) : (
+            <FastForward className={cn(runner.autoRun && "text-brand")} />
+          )}
+          {runner.autoRun ? "Stop auto-run" : "Auto-run"}
+        </Button>
+        <Button
+          variant="outline"
+          size="xs"
+          disabled={pending !== null || ready === 0 || !onRunReady}
+          onClick={() => {
+            if (onRunReady) void act("ready", onRunReady);
+          }}
+          title="Start ready tasks in worker sessions now"
+          className="shrink-0"
+        >
+          {pending === "ready" ? <Loader2 className="animate-spin" /> : <Play />}
+          Run ready ({ready})
+        </Button>
+        <Select
+          value={String(runner.maxParallel)}
+          onValueChange={(value) => {
+            if (!onMaxParallelChange) return;
+            void onMaxParallelChange(Number(value)).catch((error: unknown) => {
+              toast.error("Could not change the parallel limit", {
+                description: error instanceof Error ? error.message : undefined,
+              });
+            });
+          }}
+          disabled={!onMaxParallelChange}
+        >
+          <SelectTrigger
+            size="sm"
+            className="ml-auto h-6 min-w-0 shrink-0 gap-1 px-1.5 text-[11px] data-[size=sm]:h-6"
+            aria-label="Parallel workers"
+            title="How many worker sessions may run at once"
+          >
+            <SelectValue>{`Parallel: ${runner.maxParallel}`}</SelectValue>
+          </SelectTrigger>
+          <SelectContent position="popper" align="end">
+            {[1, 2, 3, 4].map((value) => (
+              <SelectItem key={value} value={String(value)}>
+                {value}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {running > 0 || runner.autoRun ? (
+        <p className="font-mono text-[10px] text-muted-foreground">
+          running {running}/{runner.maxParallel}
+          {runner.autoRun ? " · auto-run on" : ""}
+        </p>
+      ) : null}
+      {runner.stalled ? (
+        <div className="flex min-w-0 items-start gap-1.5 rounded-md bg-warning/10 px-2 py-1 text-[11px] text-warning">
+          <OctagonAlert className="mt-0.5 size-3 shrink-0" />
+          <span className="min-w-0 flex-1 break-words">{runner.stalled}</span>
+          {onDismissStalled ? (
+            <button
+              type="button"
+              onClick={onDismissStalled}
+              className="shrink-0 rounded opacity-70 hover:opacity-100"
+              aria-label="Dismiss"
+              title="Dismiss"
+            >
+              <X className="size-3" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      <p className="text-[10px] leading-snug text-muted-foreground/70">
+        Parallel workers share this folder. Make tasks that touch the same
+        files depend on each other.
+      </p>
+    </div>
   );
 }
 
@@ -336,6 +527,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   hasRepo,
   planSteps = 0,
   onRunTask,
+  onRunTaskInWorker,
   onStopTask,
   onCreateTask,
   onUpdateTask,
@@ -343,6 +535,11 @@ export const ContextPanel = React.memo(function ContextPanel({
   onImportPlan,
   onResolveConflicts,
   busy,
+  runner,
+  onToggleAutoRun,
+  onRunReady,
+  onMaxParallelChange,
+  onDismissStalled,
 }: {
   tasks: Task[];
   diff: FileDiff[];
@@ -357,11 +554,18 @@ export const ContextPanel = React.memo(function ContextPanel({
   onImportPlan?: () => Promise<void>;
   onResolveConflicts?: () => void;
   busy?: boolean;
+  onRunTaskInWorker?: (task: Task) => void;
+  runner?: TaskRunnerSettings;
+  onToggleAutoRun?: (autoRun: boolean) => Promise<void>;
+  onRunReady?: () => Promise<void>;
+  onMaxParallelChange?: (maxParallel: number) => Promise<void>;
+  onDismissStalled?: () => void;
 }) {
   const additions = diff.reduce((sum, file) => sum + file.additions, 0);
   const deletions = diff.reduce((sum, file) => sum + file.deletions, 0);
   const completed = tasks.filter((task) => task.status === "completed").length;
   const ready = React.useMemo(() => readyTasks(tasks).length, [tasks]);
+  const running = tasks.filter((task) => task.status === "in_progress").length;
   const byId = React.useMemo(
     () => new Map(tasks.map((task) => [task.id, task])),
     [tasks],
@@ -501,8 +705,22 @@ export const ContextPanel = React.memo(function ContextPanel({
           ) : null}
         </div>
 
-        <TabsContent value="tasks" className="min-h-0 flex-1 overflow-hidden">
-          <ScrollArea className="h-full [&_[data-slot=scroll-area-viewport]>div]:!block">
+        <TabsContent
+          value="tasks"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          {runner && tasks.length > 0 ? (
+            <TaskRunnerToolbar
+              runner={runner}
+              running={running}
+              ready={ready}
+              onToggleAutoRun={onToggleAutoRun}
+              onRunReady={onRunReady}
+              onMaxParallelChange={onMaxParallelChange}
+              onDismissStalled={onDismissStalled}
+            />
+          ) : null}
+          <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
             {tasks.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
                 <CircleDot className="size-6 text-muted-foreground/40" />
@@ -562,6 +780,7 @@ export const ContextPanel = React.memo(function ContextPanel({
                       byId={byId}
                       busy={busy}
                       onRun={onRunTask}
+                      onRunWorker={onRunTaskInWorker}
                       onStop={onStopTask}
                       onEdit={openEdit}
                       onDelete={setDeleteTarget}
