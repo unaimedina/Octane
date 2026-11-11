@@ -70,6 +70,12 @@ RUN addgroup -S -g 1001 nodejs \
      /home/nextjs/.local/share/octane-data \
   && chown -R nextjs:nodejs /home/nextjs
 
+# Persist OCTANE data and per-user OpenCode data even when a compose file does
+# not mount volumes here: Docker keeps anonymous volumes when a container is
+# recreated (e.g. `docker compose pull && docker compose up -d`). Named volumes
+# or bind mounts in compose take precedence. Back them up as described in README.
+VOLUME ["/home/nextjs/.local/share/octane-data", "/home/nextjs/.local/share/octane/users"]
+
 COPY --from=opencode /usr/local/bin/opencode /usr/local/bin/opencode
 RUN chmod 0755 /usr/local/bin/opencode
 
