@@ -189,6 +189,16 @@ The outcome is decided from that reply:
 
 **Reload-safe.** The server records each run and settles it when the task list is next loaded. Closing or reloading the tab no longer leaves a task stuck **in progress**. A running task can only be stopped (**Stop** button) or set to cancelled, not edited to another status.
 
+**Parallel workers.** A task can also run in a *worker session*: a new OpenCode session in the same folder, titled `Task #n · <title>`, that gets the task prompt plus rules for sharing the folder (only touch files for this task, never revert others' changes, no git commit/checkout/reset/stash/rebase/merge). Use the arrow next to a task's Run button and pick **Run in a worker**, or **Run ready (n)** in the toolbar to start every ready task at once. Workers appear in the session list, and the task row links to them (**Open worker**). A finished worker is settled the same way as above, and a short "Task result" note is added to the parent chat. **Parallel: 1–4** (default 2) caps how many tasks run at the same time. A worker that runs longer than 2 hours is stopped and its task returns to pending.
+
+**Auto-run.** **Auto-run** keeps starting ready tasks in workers, respecting dependencies and the parallel limit, until every task is completed or cancelled; then it turns itself off. If the remaining tasks are blocked or wait on blocked tasks, it stops and shows why. The OCTANE server drives auto-run, so it continues with the browser tab closed.
+
+Limitations:
+
+- Workers share one working tree. Make tasks that touch the same files depend on each other; there is no per-worker git worktree isolation yet.
+- The auto-run ticker lives in the Next.js server process. A server restart pauses auto-run until someone opens the session again, which resumes it.
+- Auto-run is single-instance only: several OCTANE replicas behind a load balancer would run duplicate tickers, and the task store lock is per process.
+
 Tasks are stored per user and session under `OCTANE_DATA_DIR/tasks`; they persist across restarts. Older task files are upgraded automatically on first write.
 
 ### Usage estimates

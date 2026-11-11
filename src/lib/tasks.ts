@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { octaneDataDir } from "./env";
+import { clampParallel, DEFAULT_PARALLEL } from "./task-schedule-plan";
 import {
   removeDependency,
   TaskConflictError,
@@ -27,10 +28,28 @@ const STATUSES: TaskStatus[] = [
 ];
 const PRIORITIES: TaskPriority[] = ["high", "medium", "low"];
 
+/** Per-session auto-run settings, stored next to the tasks. */
+export type TaskRunnerSettings = {
+  autoRun: boolean;
+  /** Parallel worker sessions, 1..4. */
+  maxParallel: number;
+  /** Why auto-run stopped by itself, shown until dismissed. */
+  stalled?: string;
+  startedBy?: { subject: string; username: string };
+  /** Model for worker sessions started by the scheduler. */
+  model?: { providerID: string; modelID: string };
+};
+
+export const DEFAULT_RUNNER: TaskRunnerSettings = {
+  autoRun: false,
+  maxParallel: DEFAULT_PARALLEL,
+};
+
 type TaskStore = {
   version: number;
   sessionID: string;
   tasks: Task[];
+  runner?: TaskRunnerSettings;
 };
 
 export class TaskNotFoundError extends Error {
@@ -85,6 +104,37 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function parseModel(value: unknown): TaskRunnerSettings["model"] {
+  if (
+    isRecord(value) &&
+    typeof value.providerID === "string" &&
+    value.providerID &&
+    typeof value.modelID === "string" &&
+    value.modelID
+  ) {
+    return { providerID: value.providerID, modelID: value.modelID };
+  }
+  return undefined;
+}
+
+function normalizeRunner(value: unknown): TaskRunnerSettings {
+  if (!isRecord(value)) return { ...DEFAULT_RUNNER };
+  const runner: TaskRunnerSettings = {
+    autoRun: value.autoRun === true,
+    maxParallel: clampParallel(value.maxParallel),
+  };
+  if (typeof value.stalled === "string" && value.stalled) {
+    runner.stalled = value.stalled.slice(0, 500);
+  }
+  const by = value.startedBy;
+  if (isRecord(by) && typeof by.subject === "string" && typeof by.username === "string") {
+    runner.startedBy = { subject: by.subject, username: by.username };
+  }
+  const model = parseModel(value.model);
+  if (model) runner.model = model;
+  return runner;
+}
+
 async function readStore(subject: string, sessionID: string): Promise<TaskStore> {
   let text: string;
   try {
@@ -117,7 +167,9 @@ async function readStore(subject: string, sessionID: string): Promise<TaskStore>
   const tasks = (parsed.tasks as Task[]).map((task) =>
     Array.isArray(task.dependsOn) ? task : { ...task, dependsOn: [] },
   );
-  return { version: STORE_VERSION, sessionID, tasks };
+  const store: TaskStore = { version: STORE_VERSION, sessionID, tasks };
+  if (parsed.runner !== undefined) store.runner = normalizeRunner(parsed.runner);
+  return store;
 }
 
 async function writeStore(subject: string, sessionID: string, store: TaskStore): Promise<void> {
@@ -387,5 +439,58 @@ export async function importTasks(
 
     if (added.length > 0) await writeStore(subject, sessionID, store);
     return { tasks: added, added: added.length, skipped };
+  });
+}
+
+export type RunnerPatch = {
+  autoRun?: boolean;
+  maxParallel?: number;
+  /** null clears the stalled message. */
+  stalled?: string | null;
+  startedBy?: { subject: string; username: string };
+  /** null clears the stored model. */
+  model?: { providerID: string; modelID: string } | null;
+};
+
+export async function getRunner(
+  subject: string,
+  sessionID: string,
+): Promise<TaskRunnerSettings> {
+  const store = await readStore(subject, sessionID);
+  return normalizeRunner(store.runner);
+}
+
+/**
+ * Update the runner settings under the store lock. `patch` may be a function
+ * of the current settings and tasks; returning null leaves them unchanged.
+ */
+export async function setRunner(
+  subject: string,
+  sessionID: string,
+  patch:
+    | RunnerPatch
+    | ((runner: TaskRunnerSettings, tasks: Task[]) => RunnerPatch | null),
+): Promise<TaskRunnerSettings> {
+  return withStoreLock(lockKey(subject, sessionID), async () => {
+    const store = await readStore(subject, sessionID);
+    const current = normalizeRunner(store.runner);
+    const change = typeof patch === "function" ? patch(current, store.tasks) : patch;
+    if (!change) return current;
+    const next: TaskRunnerSettings = { ...current };
+    if (typeof change.autoRun === "boolean") next.autoRun = change.autoRun;
+    if (change.maxParallel !== undefined) {
+      next.maxParallel = clampParallel(change.maxParallel);
+    }
+    if (change.stalled === null) delete next.stalled;
+    else if (typeof change.stalled === "string") next.stalled = change.stalled.slice(0, 500);
+    if (change.startedBy) next.startedBy = change.startedBy;
+    if (change.model === null) delete next.model;
+    else if (change.model) {
+      const model = parseModel(change.model);
+      if (model) next.model = model;
+    }
+    store.runner = next;
+    await writeStore(subject, sessionID, store);
+    return next;
   });
 }

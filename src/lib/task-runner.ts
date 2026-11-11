@@ -1,4 +1,9 @@
-import { getMessages, getSessionStatuses } from "./session-service";
+import {
+  abortSession,
+  addContext,
+  getMessages,
+  getSessionStatuses,
+} from "./session-service";
 import { parseTaskResult } from "./task-prompt";
 import { listTasks, mutateTasks } from "./tasks";
 import type { Task, TaskRun, TaskRunOutcome, TaskStatus } from "./types";
@@ -6,10 +11,14 @@ import type { Task, TaskRun, TaskRunOutcome, TaskStatus } from "./types";
 const START_SLACK_MS = 2_000;
 const START_TIMEOUT_MS = 120_000;
 const MAX_SUMMARY = 500;
+/** A worker claim (`run.sessionID === ""`) older than this failed to start. */
+export const WORKER_START_TIMEOUT_MS = 120_000;
+export const WORKER_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 
 type Decision = {
   taskID: string;
   startedAt: number;
+  sessionID: string;
   status: TaskStatus;
   outcome: TaskRunOutcome;
   summary?: string;
@@ -32,7 +41,11 @@ function errorMessage(error: unknown): string {
 }
 
 async function decide(task: Task, run: TaskRun): Promise<Decision | null> {
-  const base = { taskID: task.id, startedAt: run.startedAt };
+  const base = {
+    taskID: task.id,
+    startedAt: run.startedAt,
+    sessionID: run.sessionID,
+  };
   const messages = await getMessages(run.sessionID);
   const assistants = messages.filter(
     (message) =>
@@ -81,9 +94,41 @@ async function decide(task: Task, run: TaskRun): Promise<Decision | null> {
   };
 }
 
+/** 1-based position of `task` in the list, ordered by creation. */
+export function taskNumber(task: Task, all: Task[]): number {
+  const index = [...all]
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .findIndex((item) => item.id === task.id);
+  return index === -1 ? all.length + 1 : index + 1;
+}
+
+/** Best-effort note in the parent chat when a worker task settles. */
+async function postWorkerResults(
+  sessionID: string,
+  settled: Task[],
+  all: Task[],
+): Promise<void> {
+  for (const task of settled) {
+    const run = task.run;
+    if (!run || run.mode !== "worker" || !run.sessionID) continue;
+    const title = task.title.trim().slice(0, 120);
+    const summary = run.summary ? ` — ${run.summary}` : "";
+    try {
+      await addContext(
+        sessionID,
+        `Task #${taskNumber(task, all)} "${title}" finished in worker session ${run.sessionID}: ${run.outcome ?? "unknown"}${summary}`,
+        "Task result",
+      );
+    } catch {
+      // The note is informational; the task list already has the outcome.
+    }
+  }
+}
+
 /**
  * Settle running tasks whose OpenCode session is no longer busy, deciding the
- * outcome from the transcript. Returns the fresh task list.
+ * outcome from the transcript. Worker claims that never got a session and
+ * workers that ran too long are failed. Returns the fresh task list.
  */
 export async function reconcileTasks(
   subject: string,
@@ -95,12 +140,46 @@ export async function reconcileTasks(
   );
   if (running.length === 0) return tasks;
 
-  const statuses = await getSessionStatuses();
+  const now = Date.now();
   const decisions: Decision[] = [];
+  const live: Task[] = [];
   for (const task of running) {
     const run = task.run as TaskRun;
+    const base = { taskID: task.id, startedAt: run.startedAt, sessionID: run.sessionID };
+    if (run.mode === "worker" && !run.sessionID) {
+      // Claimed by the scheduler; the worker session is still being created.
+      if (now - run.startedAt > WORKER_START_TIMEOUT_MS) {
+        decisions.push({
+          ...base,
+          status: "pending",
+          outcome: "error",
+          summary: "Worker failed to start.",
+        });
+      }
+      continue;
+    }
+    live.push(task);
+  }
+
+  const statuses = live.length > 0 ? await getSessionStatuses() : {};
+  for (const task of live) {
+    const run = task.run as TaskRun;
     const status = statuses[run.sessionID];
-    if (status && status.type !== "idle") continue;
+    if (status && status.type !== "idle") {
+      // A worker still busy after the time limit is stopped.
+      if (run.mode === "worker" && now - run.startedAt > WORKER_TIMEOUT_MS) {
+        await abortSession(run.sessionID).catch(() => undefined);
+        decisions.push({
+          taskID: task.id,
+          startedAt: run.startedAt,
+          sessionID: run.sessionID,
+          status: "pending",
+          outcome: "error",
+          summary: "Timed out.",
+        });
+      }
+      continue;
+    }
     try {
       const decision = await decide(task, run);
       if (decision) decisions.push(decision);
@@ -110,34 +189,42 @@ export async function reconcileTasks(
   }
   if (decisions.length === 0) return tasks;
 
-  const { tasks: fresh } = await mutateTasks(subject, sessionID, (current) => {
-    const now = Date.now();
-    const next = current.map((task) => {
-      const decision = decisions.find((item) => item.taskID === task.id);
-      if (
-        !decision ||
-        task.status !== "in_progress" ||
-        !task.run ||
-        task.run.startedAt !== decision.startedAt
-      ) {
-        return task;
-      }
-      const updated: Task = {
-        ...task,
-        status: decision.status,
-        run: {
-          ...task.run,
-          endedAt: now,
-          outcome: decision.outcome,
-          ...(decision.summary ? { summary: decision.summary } : {}),
-        },
-        updatedAt: now,
-      };
-      if (decision.status === "completed") updated.completedAt = now;
-      else delete updated.completedAt;
-      return updated;
-    });
-    return { tasks: next };
-  });
+  const { tasks: fresh, result: settled } = await mutateTasks<Task[]>(
+    subject,
+    sessionID,
+    (current) => {
+      const now = Date.now();
+      const settled: Task[] = [];
+      const next = current.map((task) => {
+        const decision = decisions.find((item) => item.taskID === task.id);
+        if (
+          !decision ||
+          task.status !== "in_progress" ||
+          !task.run ||
+          task.run.startedAt !== decision.startedAt ||
+          task.run.sessionID !== decision.sessionID
+        ) {
+          return task;
+        }
+        const updated: Task = {
+          ...task,
+          status: decision.status,
+          run: {
+            ...task.run,
+            endedAt: now,
+            outcome: decision.outcome,
+            ...(decision.summary ? { summary: decision.summary } : {}),
+          },
+          updatedAt: now,
+        };
+        if (decision.status === "completed") updated.completedAt = now;
+        else delete updated.completedAt;
+        settled.push(updated);
+        return updated;
+      });
+      return { tasks: next, result: settled };
+    },
+  );
+  if (settled?.length) await postWorkerResults(sessionID, settled, fresh);
   return fresh;
 }
