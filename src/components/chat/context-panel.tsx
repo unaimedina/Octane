@@ -13,9 +13,11 @@ import {
   ListTodo,
   Loader2,
   MessageSquare,
+  OctagonAlert,
   Pencil,
   Play,
   Plus,
+  Square,
   Trash2,
   X,
 } from "lucide-react";
@@ -36,20 +38,37 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { isReady, readyTasks, waitingOn } from "@/lib/task-graph";
 import type { FileDiff, Task, TaskInput, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+const OUTCOME_STYLE: Record<string, string> = {
+  done: "bg-success/15 text-success",
+  unverified: "bg-warning/15 text-warning",
+  blocked: "bg-destructive/15 text-destructive",
+  error: "bg-destructive/15 text-destructive",
+  aborted: "bg-muted text-muted-foreground",
+};
+
 function TaskRow({
   task,
+  index,
+  indexById,
+  byId,
   busy,
   onRun,
+  onStop,
   onEdit,
   onDelete,
   onStatus,
 }: {
   task: Task;
+  index: number;
+  indexById: Map<string, number>;
+  byId: Map<string, Task>;
   busy?: boolean;
   onRun?: (task: Task) => void;
+  onStop?: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   onStatus: (task: Task, status: TaskStatus) => void;
@@ -59,6 +78,8 @@ function TaskRow({
       <Check className="size-3.5 text-success" />
     ) : task.status === "in_progress" ? (
       <Loader2 className="size-3.5 animate-spin text-info" />
+    ) : task.status === "blocked" ? (
+      <OctagonAlert className="size-3.5 text-destructive" />
     ) : task.status === "cancelled" ? (
       <CircleX className="size-3.5 text-muted-foreground/60" />
     ) : (
@@ -66,9 +87,23 @@ function TaskRow({
     );
 
   const toggleTo: TaskStatus =
-    task.status === "completed" || task.status === "cancelled"
+    task.status === "completed" ||
+    task.status === "cancelled" ||
+    task.status === "blocked"
       ? "pending"
       : "completed";
+
+  const dependsOn = task.dependsOn ?? [];
+  const waiting =
+    task.status === "pending" && !isReady(task, byId)
+      ? waitingOn(task, byId)
+      : [];
+  const afterLabel = dependsOn
+    .map((id) => indexById.get(id))
+    .filter((value): value is number => value !== undefined)
+    .map((value) => `#${value}`)
+    .join(", ");
+  const showOutcome = task.run?.outcome && task.status !== "in_progress";
 
   const toggleStatus = () => {
     if (task.status === "in_progress") return;
@@ -103,6 +138,9 @@ function TaskRow({
               "text-muted-foreground line-through",
           )}
         >
+          <span className="mr-1 font-mono text-[10px] text-muted-foreground/70">
+            #{index}
+          </span>
           {task.title}
         </div>
         {task.description ? (
@@ -121,23 +159,74 @@ function TaskRow({
           <span>·</span>
           <span>{task.priority}</span>
         </div>
+        {afterLabel ? (
+          <p className="mt-1 min-w-0 truncate text-[10px] text-muted-foreground/70">
+            after {afterLabel}
+          </p>
+        ) : null}
+        {waiting.length > 0 ? (
+          <p
+            className="mt-0.5 min-w-0 truncate text-[10px] text-muted-foreground"
+            title={`Waiting on: ${waiting.join(", ")}`}
+          >
+            Waiting on: {waiting.join(", ")}
+          </p>
+        ) : null}
+        {showOutcome && task.run?.outcome ? (
+          <div className="mt-1 flex min-w-0 items-center gap-1.5">
+            <span
+              className={cn(
+                "shrink-0 rounded px-1 py-px font-mono text-[9px] uppercase tracking-wider",
+                OUTCOME_STYLE[task.run.outcome],
+              )}
+              title={
+                task.run.outcome === "unverified"
+                  ? "Finished without a result line"
+                  : undefined
+              }
+            >
+              {task.run.outcome}
+            </span>
+            {task.run.summary ? (
+              <span
+                className="min-w-0 truncate text-[10px] text-muted-foreground"
+                title={task.run.summary}
+              >
+                {task.run.summary}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-0.5 flex shrink-0 items-center">
-        {onRun ? (
+        {task.status === "in_progress" && onStop ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => onStop(task)}
+            aria-label={`Stop task: ${task.title}`}
+            title="Stop this task"
+          >
+            <Square className="size-3" />
+          </Button>
+        ) : onRun ? (
           <Button
             variant="ghost"
             size="icon-xs"
             className="text-muted-foreground hover:text-success"
             onClick={() => onRun(task)}
-            disabled={busy || task.status === "in_progress"}
+            disabled={busy || task.status === "in_progress" || waiting.length > 0}
             aria-label={`Run task: ${task.title}`}
             title={
               task.status === "in_progress"
                 ? "Task is running"
-                : busy
-                  ? "Wait for the current turn"
-                  : "Run this task"
+                : waiting.length > 0
+                  ? `Waiting on ${waiting.join(", ")}`
+                  : busy
+                    ? "Wait for the current turn"
+                    : "Run this task"
             }
           >
             <Play className="size-3" />
@@ -148,8 +237,11 @@ function TaskRow({
           size="icon-xs"
           className="text-muted-foreground"
           onClick={() => onEdit(task)}
+          disabled={task.status === "in_progress"}
           aria-label={`Edit task: ${task.title}`}
-          title="Edit task"
+          title={
+            task.status === "in_progress" ? "Stop the task to edit it" : "Edit task"
+          }
         >
           <Pencil className="size-3" />
         </Button>
@@ -244,6 +336,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   hasRepo,
   planSteps = 0,
   onRunTask,
+  onStopTask,
   onCreateTask,
   onUpdateTask,
   onDeleteTask,
@@ -257,6 +350,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   hasRepo: boolean;
   planSteps?: number;
   onRunTask?: (task: Task) => void;
+  onStopTask?: (task: Task) => void;
   onCreateTask?: (input: TaskInput) => Promise<unknown>;
   onUpdateTask?: (id: string, input: Partial<TaskInput>) => Promise<unknown>;
   onDeleteTask?: (id: string) => Promise<void>;
@@ -267,6 +361,15 @@ export const ContextPanel = React.memo(function ContextPanel({
   const additions = diff.reduce((sum, file) => sum + file.additions, 0);
   const deletions = diff.reduce((sum, file) => sum + file.deletions, 0);
   const completed = tasks.filter((task) => task.status === "completed").length;
+  const ready = React.useMemo(() => readyTasks(tasks).length, [tasks]);
+  const byId = React.useMemo(
+    () => new Map(tasks.map((task) => [task.id, task])),
+    [tasks],
+  );
+  const indexById = React.useMemo(
+    () => new Map(tasks.map((task, position) => [task.id, position + 1])),
+    [tasks],
+  );
   const [selectedTab, setSelectedTab] = React.useState<
     "tasks" | "changes" | null
   >(null);
@@ -359,6 +462,11 @@ export const ContextPanel = React.memo(function ContextPanel({
               <span className="font-mono text-[10px] text-muted-foreground">
                 {tasks.length ? `${completed}/${tasks.length}` : "0"}
               </span>
+              {ready > 0 ? (
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  ready {ready}
+                </span>
+              ) : null}
             </TabsTrigger>
             {hasRepo ? (
               <TabsTrigger value="changes" className="flex-1 gap-1.5 text-xs">
@@ -445,12 +553,16 @@ export const ContextPanel = React.memo(function ContextPanel({
                   </div>
                 ) : null}
                 <ul className="w-full space-y-0.5 p-2">
-                  {tasks.map((task) => (
+                  {tasks.map((task, position) => (
                     <TaskRow
                       key={task.id}
                       task={task}
+                      index={position + 1}
+                      indexById={indexById}
+                      byId={byId}
                       busy={busy}
                       onRun={onRunTask}
+                      onStop={onStopTask}
                       onEdit={openEdit}
                       onDelete={setDeleteTarget}
                       onStatus={handleStatus}
@@ -504,6 +616,7 @@ export const ContextPanel = React.memo(function ContextPanel({
             if (!open) setEditingTask(undefined);
           }}
           task={editingTask}
+          tasks={tasks}
           onSave={handleSave}
         />
       ) : null}
