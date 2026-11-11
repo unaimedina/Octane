@@ -33,6 +33,21 @@ function taskFailure(error: unknown): Response {
   return failure(error);
 }
 
+function assertRunnable(task: Task, byId: Map<string, Task>): void {
+  if (task.status === "in_progress") {
+    throw new TaskConflictError("Task is already running.", "already_running");
+  }
+  if (!isReady(task, byId)) {
+    const waiting = waitingOn(task, byId);
+    throw new TaskConflictError(
+      waiting.length > 0
+        ? `Waiting on: ${waiting.join(", ")}`
+        : `Task is ${task.status}; only pending tasks can run.`,
+      "not_ready",
+    );
+  }
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string; taskId: string }> },
@@ -54,9 +69,11 @@ export async function POST(
 
     // 1. Settle anything that finished while nobody was looking.
     const current = await reconcileTasks(subject, id);
-    if (!current.some((task) => task.id === taskId)) {
-      throw new TaskNotFoundError();
-    }
+    const target = current.find((task) => task.id === taskId);
+    if (!target) throw new TaskNotFoundError();
+
+    // 2. Readiness (re-checked under the lock below).
+    assertRunnable(target, new Map(current.map((task) => [task.id, task])));
 
     // 3. One turn at a time per OpenCode session.
     const statuses = await getSessionStatuses();
@@ -77,19 +94,7 @@ export async function POST(
         const index = tasks.findIndex((task) => task.id === taskId);
         if (index === -1) throw new TaskNotFoundError();
         const previous = tasks[index];
-        if (previous.status === "in_progress") {
-          throw new TaskConflictError("Task is already running.", "already_running");
-        }
-        const byId = new Map(tasks.map((task) => [task.id, task]));
-        if (!isReady(previous, byId)) {
-          const waiting = waitingOn(previous, byId);
-          throw new TaskConflictError(
-            waiting.length > 0
-              ? `Waiting on: ${waiting.join(", ")}`
-              : `Task is ${previous.status}; only pending tasks can run.`,
-            "not_ready",
-          );
-        }
+        assertRunnable(previous, new Map(tasks.map((task) => [task.id, task])));
         const task: Task = {
           ...previous,
           status: "in_progress",

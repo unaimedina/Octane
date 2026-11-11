@@ -311,17 +311,26 @@ export async function deleteTask(
 
 /**
  * Read-modify-write inside the store lock with a single write. `fn` may mutate
- * the array in place or return a replacement. Internal helper for the task
- * runner and the run/stop routes.
+ * the array in place, return a replacement `Task[]`, or return
+ * `{ tasks?, result? }` to also hand a value back to the caller. Internal
+ * helper for the task runner, the run/stop routes and bulk imports.
  */
+export type TaskMutation<T> =
+  | Task[]
+  | { tasks?: Task[]; result?: T }
+  | void;
+
 export async function mutateTasks<T = undefined>(
   subject: string,
   sessionID: string,
-  fn: (tasks: Task[]) => { tasks?: Task[]; result?: T } | void,
+  fn: (tasks: Task[]) => TaskMutation<T> | Promise<TaskMutation<T>>,
 ): Promise<{ tasks: Task[]; result: T | undefined }> {
   return withStoreLock(lockKey(subject, sessionID), async () => {
     const store = await readStore(subject, sessionID);
-    const output = fn(store.tasks);
+    const returned = await fn(store.tasks);
+    const output: { tasks?: Task[]; result?: T } | void = Array.isArray(returned)
+      ? { tasks: returned }
+      : returned;
     if (output?.tasks) store.tasks = output.tasks;
     await writeStore(subject, sessionID, store);
     return {

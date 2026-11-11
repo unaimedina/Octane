@@ -68,10 +68,9 @@ export function validateDependencies(
     for (const id of ids) {
       const path = findPath(id, taskId, byId);
       if (path) {
+        // `path` runs from the new dependency back to `taskId`, closing the loop.
         const titles = [taskId, ...path].map((node) => byId.get(node)?.title ?? node);
-        throw new TaskValidationError(
-          `Dependency cycle: ${titles.join(" -> ")} -> ${titles[0]}.`,
-        );
+        throw new TaskValidationError(`Dependency cycle: ${titles.join(" -> ")}.`);
       }
     }
   }
