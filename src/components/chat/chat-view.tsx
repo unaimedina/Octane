@@ -91,6 +91,7 @@ import type {
   TextPart,
   UserMessage,
 } from "@/lib/types";
+import { diffTouchesPlanFiles, partTouchesPlanFiles } from "@/lib/plan-file-paths";
 const INITIAL_VISIBLE_MESSAGES = 50;
 const MESSAGE_PAGE = 50;
 const PENDING_CONTEXT_PREFIX = "oc.pendingContext.";
@@ -581,7 +582,10 @@ export function ChatView({
     warnings: string[];
   }>({ plansDir: null, items: [], warnings: [] });
   const [planFilesOpen, setPlanFilesOpen] = React.useState(false);
+  const [planFilesLoading, setPlanFilesLoading] = React.useState(false);
   const planFilesTimer = React.useRef<number | null>(null);
+  /** Pending plan-file refs from the last scan; null until the first scan. */
+  const knownPlanFiles = React.useRef<Set<string> | null>(null);
   const [diff, setDiff] = React.useState(initialDiff);
   const [draft, setDraft] = React.useState(initialDraft);
   const [working, setWorking] = React.useState(false);
@@ -690,27 +694,75 @@ export function ChatView({
     }
   }, [pendingPlanSteps, session.id]);
 
+  /** Look for plan files in the session folder right now. */
+  const scanPlanFiles = React.useCallback(
+    async (options?: { reportErrors?: boolean }) => {
+      if (planFilesTimer.current) {
+        window.clearTimeout(planFilesTimer.current);
+        planFilesTimer.current = null;
+      }
+      setPlanFilesLoading(true);
+      try {
+        const preview = await apiJson<{
+          plansDir: string | null;
+          items: PlanFilePreviewItem[];
+          warnings: string[];
+        }>(`/sessions/${encodeURIComponent(session.id)}/tasks/plan-files`);
+        setPlanFilePreview(preview);
+        // Tell the user when the agent writes new plan files, so they don't
+        // have to go looking for the import button.
+        const pending = preview.items.filter((item) => !item.imported);
+        const previous = knownPlanFiles.current;
+        knownPlanFiles.current = new Set(pending.map((item) => item.ref));
+        const added = previous
+          ? pending.filter((item) => !previous.has(item.ref)).length
+          : 0;
+        if (added > 0 && preview.plansDir) {
+          toast.message(
+            `${added} new plan file${added === 1 ? "" : "s"} in ${preview.plansDir}/`,
+            {
+              id: `plan-files-${session.id}`,
+              action: { label: "Import", onClick: () => setPlanFilesOpen(true) },
+            },
+          );
+        }
+        return preview;
+      } catch (error) {
+        if (options?.reportErrors) {
+          toast.error("Could not read the plans folder", {
+            description: error instanceof Error ? error.message : undefined,
+          });
+        }
+        return null;
+      } finally {
+        setPlanFilesLoading(false);
+      }
+    },
+    [session.id],
+  );
+
   /** Look for plan files in the session folder. Debounced. */
   const refreshPlanFiles = React.useCallback(() => {
     if (planFilesTimer.current) window.clearTimeout(planFilesTimer.current);
     planFilesTimer.current = window.setTimeout(() => {
       planFilesTimer.current = null;
-      void apiJson<{
-        plansDir: string | null;
-        items: PlanFilePreviewItem[];
-        warnings: string[];
-      }>(`/sessions/${encodeURIComponent(session.id)}/tasks/plan-files`)
-        .then(setPlanFilePreview)
-        .catch(() => undefined);
+      void scanPlanFiles();
     }, 500);
-  }, [session.id]);
+  }, [scanPlanFiles]);
 
   React.useEffect(() => {
+    knownPlanFiles.current = null;
     refreshPlanFiles();
     return () => {
       if (planFilesTimer.current) window.clearTimeout(planFilesTimer.current);
     };
   }, [refreshPlanFiles]);
+
+  /** Open the import dialog with a fresh scan of the plans folder. */
+  const openPlanFilesImport = React.useCallback(() => {
+    setPlanFilesOpen(true);
+    void scanPlanFiles({ reportErrors: true });
+  }, [scanPlanFiles]);
 
   const importPlanFiles = React.useCallback(
     async (refs: string[]) => {
@@ -763,6 +815,12 @@ export function ChatView({
       refreshTasks();
     }
   }, [refreshTasks]);
+
+  /** Manual refresh from the Tasks panel: reload tasks and rescan plans now. */
+  const refreshTasksPanel = React.useCallback(() => {
+    refreshTasks();
+    void scanPlanFiles({ reportErrors: true });
+  }, [refreshTasks, scanPlanFiles]);
 
   const pendingPlanFiles = planFilePreview.items.filter((item) => !item.imported);
   const planFilesProp = pendingPlanFiles.length > 0 && planFilePreview.plansDir
@@ -1020,6 +1078,9 @@ export function ChatView({
             const part = event.properties.part;
             pendingParts.current.set(part.id, part);
             queueFlush();
+            // The agent just wrote a plan file: rescan so the import button
+            // shows up without waiting for the turn to end.
+            if (partTouchesPlanFiles(part)) refreshPlanFiles();
             break;
           }
           case "message.part.removed": {
@@ -1079,6 +1140,7 @@ export function ChatView({
             break;
           case "session.diff":
             setDiff(event.properties.diff);
+            if (diffTouchesPlanFiles(event.properties.diff)) refreshPlanFiles();
             break;
           default:
             break;
@@ -1799,7 +1861,9 @@ export function ChatView({
             onDeleteTask={deleteTask}
             onImportPlan={importPlanTasks}
             planFiles={planFilesProp}
-            onImportPlanFiles={() => setPlanFilesOpen(true)}
+            onImportPlanFiles={openPlanFilesImport}
+            onRefreshTasks={refreshTasksPanel}
+            refreshing={planFilesLoading}
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
@@ -1821,7 +1885,9 @@ export function ChatView({
             onDeleteTask={deleteTask}
             onImportPlan={importPlanTasks}
             planFiles={planFilesProp}
-            onImportPlanFiles={() => setPlanFilesOpen(true)}
+            onImportPlanFiles={openPlanFilesImport}
+            onRefreshTasks={refreshTasksPanel}
+            refreshing={planFilesLoading}
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
@@ -1835,6 +1901,8 @@ export function ChatView({
         items={planFilePreview.items}
         warnings={planFilePreview.warnings}
         onImport={importPlanFiles}
+        onRefresh={() => void scanPlanFiles({ reportErrors: true })}
+        loading={planFilesLoading}
       />
 
       <Dialog open={contextDialogOpen} onOpenChange={handleContextDialogOpenChange}>

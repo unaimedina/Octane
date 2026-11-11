@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +30,8 @@ export function PlanFilesImportDialog({
   items,
   warnings,
   onImport,
+  onRefresh,
+  loading = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -37,6 +39,9 @@ export function PlanFilesImportDialog({
   items: PlanFilePreviewItem[];
   warnings: string[];
   onImport: (refs: string[]) => Promise<void>;
+  /** Rescan the plans folder. */
+  onRefresh?: () => void;
+  loading?: boolean;
 }) {
   const [unchecked, setUnchecked] = React.useState<Set<string>>(new Set());
   const [importing, setImporting] = React.useState(false);
@@ -88,6 +93,22 @@ export function PlanFilesImportDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border/60 px-4 py-8 text-center text-xs text-muted-foreground">
+            {loading ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Looking for plan files…
+              </>
+            ) : (
+              <p>
+                No plan files found in <code className="font-mono">{dir}/</code>.
+                Plans must be named <code className="font-mono">NNN-slug.md</code>{" "}
+                (for example <code className="font-mono">001-setup.md</code>).
+              </p>
+            )}
+          </div>
+        ) : (
         <div className="max-h-[50vh] overflow-hidden rounded-md border border-border/60">
           <ScrollArea className="max-h-[50vh]">
             <ul className="divide-y divide-border/50">
@@ -127,6 +148,7 @@ export function PlanFilesImportDialog({
             </ul>
           </ScrollArea>
         </div>
+        )}
 
         {warnings.length > 0 ? (
           <ul className="space-y-0.5 text-xs text-warning">
@@ -138,6 +160,17 @@ export function PlanFilesImportDialog({
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
         <DialogFooter>
+          {onRefresh ? (
+            <Button
+              variant="outline"
+              onClick={onRefresh}
+              disabled={importing || loading}
+              className="gap-1.5 sm:mr-auto"
+            >
+              <RefreshCw className={loading ? "size-3.5 animate-spin" : "size-3.5"} />
+              Refresh
+            </Button>
+          ) : null}
           <Button variant="ghost" onClick={() => handleOpenChange(false)} disabled={importing}>
             Cancel
           </Button>
