@@ -12,6 +12,7 @@ import {
   ExternalLink,
   FastForward,
   GitCompareArrows,
+  FolderInput,
   GitMerge,
   ListPlus,
   ListTodo,
@@ -21,6 +22,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RefreshCw,
   Square,
   Trash2,
   X,
@@ -526,6 +528,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   className,
   hasRepo,
   planSteps = 0,
+  planFiles,
   onRunTask,
   onRunTaskInWorker,
   onStopTask,
@@ -533,6 +536,9 @@ export const ContextPanel = React.memo(function ContextPanel({
   onUpdateTask,
   onDeleteTask,
   onImportPlan,
+  onImportPlanFiles,
+  onRefreshTasks,
+  refreshing,
   onResolveConflicts,
   busy,
   runner,
@@ -546,12 +552,17 @@ export const ContextPanel = React.memo(function ContextPanel({
   className?: string;
   hasRepo: boolean;
   planSteps?: number;
+  planFiles?: { count: number; dir: string };
   onRunTask?: (task: Task) => void;
   onStopTask?: (task: Task) => void;
   onCreateTask?: (input: TaskInput) => Promise<unknown>;
   onUpdateTask?: (id: string, input: Partial<TaskInput>) => Promise<unknown>;
   onDeleteTask?: (id: string) => Promise<void>;
   onImportPlan?: () => Promise<void>;
+  onImportPlanFiles?: () => void;
+  /** Reload tasks and rescan the plans folder. */
+  onRefreshTasks?: () => void;
+  refreshing?: boolean;
   onResolveConflicts?: () => void;
   busy?: boolean;
   onRunTaskInWorker?: (task: Task) => void;
@@ -589,7 +600,7 @@ export const ContextPanel = React.memo(function ContextPanel({
     !hasRepo && selectedTab === "changes"
       ? "tasks"
       : (selectedTab ??
-        (tasks.length > 0 || planSteps > 0 || !hasRepo ? "tasks" : "changes"));
+        (tasks.length > 0 || planSteps > 0 || (planFiles?.count ?? 0) > 0 || !hasRepo ? "tasks" : "changes"));
 
   function openCreate() {
     setEditingTask(undefined);
@@ -691,6 +702,29 @@ export const ContextPanel = React.memo(function ContextPanel({
           >
             <Plus className="size-3.5" />
           </Button>
+          {onImportPlanFiles ? (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={onImportPlanFiles}
+              aria-label="Import plans folder"
+              title="Import plan files from the plans folder"
+            >
+              <FolderInput className="size-3.5" />
+            </Button>
+          ) : null}
+          {onRefreshTasks ? (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={onRefreshTasks}
+              disabled={refreshing}
+              aria-label="Refresh tasks"
+              title="Reload tasks and rescan the plans folder"
+            >
+              <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
+            </Button>
+          ) : null}
           {hasRepo && onResolveConflicts ? (
             <Button
               variant="ghost"
@@ -725,8 +759,8 @@ export const ContextPanel = React.memo(function ContextPanel({
               <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
                 <CircleDot className="size-6 text-muted-foreground/40" />
                 <p className="text-xs text-muted-foreground">
-                  No tasks yet. Add a task or import the steps from the latest
-                  plan.
+                  No tasks yet. Add a task, or import plan files from the
+                  session&apos;s plans folder.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
                   <Button size="sm" onClick={openCreate} className="gap-1.5">
@@ -748,10 +782,37 @@ export const ContextPanel = React.memo(function ContextPanel({
                       Import {planSteps} plan steps
                     </Button>
                   ) : null}
+                  {onImportPlanFiles ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onImportPlanFiles}
+                      className="gap-1.5"
+                    >
+                      <FolderInput className="size-3.5" />
+                      {planFiles && planFiles.count > 0
+                        ? `Import ${planFiles.count} plan files from ${planFiles.dir}/`
+                        : "Import plans folder"}
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ) : (
               <>
+                {planFiles && planFiles.count > 0 && onImportPlanFiles ? (
+                  <div className="border-b border-border/50 p-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onImportPlanFiles}
+                      disabled={busy}
+                      className="w-full justify-start gap-1.5"
+                    >
+                      <ListPlus className="size-3.5" />
+                      Import {planFiles.count} plan files from {planFiles.dir}/
+                    </Button>
+                  </div>
+                ) : null}
                 {planSteps > 0 && onImportPlan ? (
                   <div className="border-b border-border/50 p-2">
                     <Button
