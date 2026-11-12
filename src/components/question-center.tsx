@@ -4,7 +4,6 @@ import * as React from "react";
 import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -82,20 +81,15 @@ function QuestionDialog({ request }: { request: QuestionRequest }) {
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader>
-          <div className="mb-1 flex items-center gap-2">
-            <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-wider">
-              question
-            </Badge>
-            {many ? (
-              <Badge variant="secondary" className="font-mono text-[10px]">
-                {request.questions.length} questions
-              </Badge>
-            ) : null}
-          </div>
-          <DialogTitle className="text-balance">
+          {many ? (
+            <div className="font-mono text-[11px] text-muted-foreground">
+              {request.questions.length} questions
+            </div>
+          ) : null}
+          <DialogTitle className="headline text-[20px] text-balance">
             {request.questions[0]?.header || "The agent has a question"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-[13px]">
             In session{" "}
             {title ? (
               <span className="font-medium">{title}</span>
@@ -127,19 +121,28 @@ function QuestionDialog({ request }: { request: QuestionRequest }) {
                   {question.options.map((option) => {
                     const selected = draft.selected.includes(option.label);
                     return (
-                      <Button
+                      <button
                         key={option.label}
                         type="button"
-                        variant={selected ? "secondary" : "outline"}
                         role={multiple ? "checkbox" : "radio"}
                         aria-checked={selected}
                         disabled={Boolean(busy)}
-                        className="h-auto w-full min-w-0 justify-start gap-2 px-3 py-2 text-left whitespace-normal"
+                        className={cn(
+                          "flex w-full min-w-0 items-start gap-2.5 rounded-md border border-border px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+                          selected && "border-brand/50 bg-accent",
+                        )}
                         onClick={() => update(index, toggleOption(question, draft, option.label))}
                       >
-                        <Check
-                          className={cn("size-4 shrink-0", selected ? "opacity-100" : "opacity-0")}
-                        />
+                        {/* Square for single and multiple choice: the design contract has no round dots. */}
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-[3px] border",
+                            selected ? "border-brand bg-brand" : "border-input",
+                          )}
+                        >
+                          {selected ? <Check className="size-3 text-brand-foreground" /> : null}
+                        </span>
                         <span className="flex min-w-0 flex-col">
                           <span className="font-medium break-words">{option.label}</span>
                           {option.description ? (
@@ -148,7 +151,7 @@ function QuestionDialog({ request }: { request: QuestionRequest }) {
                             </span>
                           ) : null}
                         </span>
-                      </Button>
+                      </button>
                     );
                   })}
                 </div>
@@ -173,7 +176,7 @@ function QuestionDialog({ request }: { request: QuestionRequest }) {
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
           <Button
-            variant="outline"
+            variant="ghost"
             className="sm:mr-auto"
             disabled={Boolean(busy)}
             onClick={() => void dismiss()}

@@ -86,7 +86,7 @@ export function PlanFilesImportDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Import plan files</DialogTitle>
+          <DialogTitle className="headline text-[20px]">Import plan files</DialogTitle>
           <DialogDescription>
             Each plan in <code className="font-mono">{dir}/</code> becomes a task
             that tells the agent to execute that file.
@@ -94,7 +94,7 @@ export function PlanFilesImportDialog({
         </DialogHeader>
 
         {items.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border/60 px-4 py-8 text-center text-xs text-muted-foreground">
+          <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border px-4 py-8 text-center text-xs text-muted-foreground">
             {loading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
@@ -109,7 +109,7 @@ export function PlanFilesImportDialog({
             )}
           </div>
         ) : (
-        <div className="max-h-[50vh] overflow-hidden rounded-md border border-border/60">
+        <div className="max-h-[50vh] overflow-hidden rounded-md border border-border">
           <ScrollArea className="max-h-[50vh]">
             <ul className="divide-y divide-border/50">
               {items.map((item) => (
@@ -122,7 +122,7 @@ export function PlanFilesImportDialog({
                   >
                     <input
                       type="checkbox"
-                      className="mt-1 size-3.5 shrink-0"
+                      className="mt-1 size-3.5 shrink-0 accent-brand"
                       disabled={item.imported}
                       checked={!item.imported && !unchecked.has(item.ref)}
                       onChange={() => toggle(item.ref)}
@@ -162,7 +162,7 @@ export function PlanFilesImportDialog({
         <DialogFooter>
           {onRefresh ? (
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={onRefresh}
               disabled={importing || loading}
               className="gap-1.5 sm:mr-auto"

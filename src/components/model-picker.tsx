@@ -75,7 +75,7 @@ export function ModelPicker({
           variant="ghost"
           size="sm"
           className={cn(
-            "min-w-0 justify-start gap-1.5 px-2 text-[11px] text-muted-foreground",
+            "min-w-0 justify-start gap-1.5 px-2 text-[12px] text-muted-foreground",
             className,
           )}
           aria-label={label}
@@ -90,7 +90,7 @@ export function ModelPicker({
       <PopoverContent side={side} align={align} className="w-80 p-0">
         <Command>
           <CommandInput placeholder="Search models…" />
-          <CommandList className="max-h-72">
+          <CommandList className="max-h-72 **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-normal">
             <CommandEmpty>No models found.</CommandEmpty>
             {allowDefault ? (
               <CommandGroup heading="Fallback">
@@ -103,7 +103,7 @@ export function ModelPicker({
                   className="gap-2"
                 >
                   <span className="min-w-0 flex-1 truncate">Use server default</span>
-                  {!value ? <Check className="size-3.5 shrink-0" /> : null}
+                  {!value ? <Check className="size-3.5 shrink-0 text-brand" /> : null}
                 </CommandItem>
               </CommandGroup>
             ) : null}
@@ -128,11 +128,11 @@ export function ModelPicker({
                     >
                       <span className="min-w-0 flex-1 truncate">{model.name}</span>
                       {model.reasoning ? (
-                        <span className="rounded bg-muted px-1 font-mono text-[9px] text-muted-foreground">
+                        <span className="rounded-sm bg-muted px-1 font-mono text-[10px] text-muted-foreground">
                           reasoning
                         </span>
                       ) : null}
-                      {active ? <Check className="size-3.5 shrink-0" /> : null}
+                      {active ? <Check className="size-3.5 shrink-0 text-brand" /> : null}
                     </CommandItem>
                   );
                 })}

@@ -98,8 +98,8 @@ export function TaskDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{task ? "Edit task" : "New task"}</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="headline text-[20px]">{task ? "Edit task" : "New task"}</DialogTitle>
+          <DialogDescription className="text-[13px]">
             A task has a definition for the list and its own prompt for the
             agent. Run it when you want the agent to execute that part.
           </DialogDescription>
@@ -196,15 +196,16 @@ export function TaskDialog({
           {tasks.some((item) => item.id !== task?.id) ? (
             <div className="space-y-1.5">
               <Label>Depends on</Label>
-              <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-[10px] border border-border/60 p-1.5">
+              <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-md border border-border p-1.5">
                 {tasks.map((item, position) =>
                   item.id === task?.id ? null : (
                     <label
                       key={item.id}
-                      className="flex min-w-0 cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/40"
+                      className="flex min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1 text-xs hover:bg-accent/60"
                     >
                       <input
                         type="checkbox"
+                        className="accent-brand rounded-[3px]"
                         checked={dependsOn.includes(item.id)}
                         onChange={(event) =>
                           setDependsOn((current) =>
@@ -231,7 +232,7 @@ export function TaskDialog({
           ) : null}
 
           {error ? (
-            <p className="rounded-[10px] border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">
               {error}
             </p>
           ) : null}
@@ -239,7 +240,7 @@ export function TaskDialog({
           <DialogFooter>
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={saving}
             >
