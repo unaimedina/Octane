@@ -182,6 +182,22 @@ export async function summarizeSession(
   return oc.summarizeSession(id, model);
 }
 
+export async function listQuestions(sessionID: string) {
+  return oc.listQuestions(sessionID);
+}
+
+export async function replyQuestion(
+  sessionID: string,
+  requestID: string,
+  answers: string[][],
+): Promise<void> {
+  return oc.replyQuestion(sessionID, requestID, answers);
+}
+
+export async function rejectQuestion(sessionID: string, requestID: string): Promise<void> {
+  return oc.rejectQuestion(sessionID, requestID);
+}
+
 export async function respondPermission(
   sessionID: string,
   permissionID: string,

@@ -26,6 +26,7 @@ import type {
   ToolState,
   UserMessage,
 } from "./types";
+import { normalizeQuestionRequest, type QuestionRequest } from "./questions";
 import { apiFlavor, UpstreamError, upstreamFetch, upstreamJson } from "./upstream";
 import { serverAuthHeader } from "./env";
 
@@ -1259,6 +1260,57 @@ export async function summarizeSession(
     headers: { "content-type": "application/json" },
     body: JSON.stringify(model ?? {}),
   });
+}
+
+export async function listQuestions(sessionID: string): Promise<QuestionRequest[]> {
+  try {
+    let items: unknown[];
+    if ((await apiFlavor()) === "v2") {
+      const result = await upstreamJson<unknown>(
+        `/api/session/${encodeURIComponent(sessionID)}/question`,
+      );
+      const data = Array.isArray(result)
+        ? result
+        : (result as { data?: unknown } | undefined)?.data;
+      items = Array.isArray(data) ? data : [];
+    } else {
+      const result = await upstreamJson<unknown>("/question");
+      items = Array.isArray(result) ? result : [];
+    }
+    const requests: QuestionRequest[] = [];
+    for (const item of items) {
+      const request = normalizeQuestionRequest(item);
+      if (request && request.sessionID === sessionID) requests.push(request);
+    }
+    return requests;
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) return [];
+    throw error;
+  }
+}
+
+export async function replyQuestion(
+  sessionID: string,
+  requestID: string,
+  answers: string[][],
+): Promise<void> {
+  const path =
+    (await apiFlavor()) === "v2"
+      ? `/api/session/${encodeURIComponent(sessionID)}/question/${encodeURIComponent(requestID)}/reply`
+      : `/question/${encodeURIComponent(requestID)}/reply`;
+  await upstreamJson(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ answers }),
+  });
+}
+
+export async function rejectQuestion(sessionID: string, requestID: string): Promise<void> {
+  const path =
+    (await apiFlavor()) === "v2"
+      ? `/api/session/${encodeURIComponent(sessionID)}/question/${encodeURIComponent(requestID)}/reject`
+      : `/question/${encodeURIComponent(requestID)}/reject`;
+  await upstreamJson(path, { method: "POST" });
 }
 
 export async function respondPermission(

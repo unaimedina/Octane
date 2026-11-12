@@ -17,6 +17,9 @@ import type {
   Skill,
 } from "@/lib/types";
 import type { UsageSummary } from "@/lib/usage";
+import { normalizeQuestionRequest, type QuestionRequest } from "@/lib/questions";
+import { isFinishTransition } from "@/lib/sound-triggers";
+import { playSound, unlockAudio } from "@/lib/sounds";
 
 type AppDataValue = {
   sessions: Session[];
@@ -33,6 +36,10 @@ type AppDataValue = {
   harnessLabel: string;
   connected: boolean;
   pendingPermissions: Permission[];
+  pendingQuestions: QuestionRequest[];
+  replyQuestion: (request: QuestionRequest, answers: string[][]) => Promise<void>;
+  rejectQuestion: (request: QuestionRequest) => Promise<void>;
+  loadQuestions: (sessionID: string) => Promise<void>;
   createSession: (options?: { title?: string; directory?: string }) => Promise<Session>;
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -109,8 +116,17 @@ export function AppDataProvider({
   const [sessions, setSessions] = React.useState(() => sortSessions(initialSessions));
   const [statuses, setStatuses] = React.useState(initialStatuses);
   const [pendingPermissions, setPendingPermissions] = React.useState<Permission[]>([]);
+  const [pendingQuestions, setPendingQuestions] = React.useState<QuestionRequest[]>([]);
   const [connected, setConnected] = React.useState(false);
   const handlers = React.useRef(new Set<(event: Event) => void>());
+  const statusRef = React.useRef<Record<string, SessionStatus>>(initialStatuses);
+  const sessionsRef = React.useRef(sessions);
+  // Permission/question IDs already announced, so each one sounds once.
+  const announcedRef = React.useRef(new Set<string>());
+
+  React.useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
 
   const subscribe = React.useCallback((handler: (event: Event) => void) => {
     handlers.current.add(handler);
@@ -139,6 +155,7 @@ export function AppDataProvider({
         apiJson<Record<string, SessionStatus>>("/sessions/status").catch(() => ({})),
       ]);
       setSessions(sortSessions(nextSessions.map(tagSession)));
+      statusRef.current = nextStatuses;
       setStatuses(nextStatuses);
     } catch {
       // A transient upstream failure should not wipe the sidebar.
@@ -151,8 +168,45 @@ export function AppDataProvider({
     let openCount = 0;
     let lastAuthCheck = 0;
 
+    const unlock = () => unlockAudio();
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+
+    // Only sessions the user sees in the sidebar make a finish sound.
+    const isAudible = (id: string) => {
+      if (hiddenRef.current.has(id)) return false;
+      const known = sessionsRef.current.find((item) => item.id === id);
+      return Boolean(known) && !known?.parentID;
+    };
+    const noteStatus = (id: string, next: SessionStatus) => {
+      const prev = statusRef.current[id];
+      statusRef.current = { ...statusRef.current, [id]: next };
+      if (isFinishTransition(prev, next) && isAudible(id)) playSound("done");
+    };
+    const announce = (id: string) => {
+      if (announcedRef.current.has(id)) return;
+      announcedRef.current.add(id);
+      playSound("attention");
+    };
+
     const handleEvent = (event: Event) => {
       if (!event || typeof event.type !== "string") return;
+      // The v1 SDK `Event` union has no question events, so read them loosely.
+      const loose = event as unknown as { type: string; properties?: unknown };
+      if (loose.type === "question.asked") {
+        const request = normalizeQuestionRequest(loose.properties);
+        if (request) {
+          announce(request.id);
+          setPendingQuestions((current) =>
+            current.some((item) => item.id === request.id) ? current : [...current, request],
+          );
+        }
+      } else if (loose.type === "question.replied" || loose.type === "question.rejected") {
+        const props = (loose.properties ?? {}) as { requestID?: unknown };
+        if (typeof props.requestID === "string") {
+          setPendingQuestions((current) => current.filter((item) => item.id !== props.requestID));
+        }
+      }
       switch (event.type) {
         case "server.connected":
           setConnected(true);
@@ -172,18 +226,21 @@ export function AppDataProvider({
           break;
         }
         case "session.status":
+          noteStatus(event.properties.sessionID, event.properties.status);
           setStatuses((current) => ({
             ...current,
             [event.properties.sessionID]: event.properties.status,
           }));
           break;
         case "session.idle":
+          noteStatus(event.properties.sessionID, { type: "idle" });
           setStatuses((current) => ({
             ...current,
             [event.properties.sessionID]: { type: "idle" },
           }));
           break;
         case "permission.updated":
+          announce(event.properties.id);
           setPendingPermissions((current) => {
             if (current.some((item) => item.id === event.properties.id)) return current;
             return [...current, event.properties];
@@ -264,6 +321,8 @@ export function AppDataProvider({
       closed = true;
       for (const source of sources) source.close();
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
     };
   }, [refreshSessions]);
 
@@ -319,6 +378,42 @@ export function AppDataProvider({
     [],
   );
 
+  const replyQuestion = React.useCallback(
+    async (request: QuestionRequest, answers: string[][]) => {
+      await api(
+        `/sessions/${encodeURIComponent(request.sessionID)}/questions/${encodeURIComponent(request.id)}`,
+        { method: "POST", ...jsonBody({ answers }) },
+      );
+      setPendingQuestions((current) => current.filter((item) => item.id !== request.id));
+    },
+    [],
+  );
+
+  const rejectQuestion = React.useCallback(async (request: QuestionRequest) => {
+    await api(
+      `/sessions/${encodeURIComponent(request.sessionID)}/questions/${encodeURIComponent(request.id)}`,
+      { method: "DELETE" },
+    );
+    setPendingQuestions((current) => current.filter((item) => item.id !== request.id));
+  }, []);
+
+  const loadQuestions = React.useCallback(async (sessionID: string) => {
+    try {
+      const found = await apiJson<QuestionRequest[]>(
+        `/sessions/${encodeURIComponent(sessionID)}/questions`,
+      );
+      if (!Array.isArray(found) || found.length === 0) return;
+      // Catch-up questions were already pending; do not sound for them.
+      for (const item of found) announcedRef.current.add(item.id);
+      setPendingQuestions((current) => {
+        const fresh = found.filter((item) => !current.some((known) => known.id === item.id));
+        return fresh.length ? [...current, ...fresh] : current;
+      });
+    } catch {
+      // Catch-up only; live events are the main path.
+    }
+  }, []);
+
   const value = React.useMemo<AppDataValue>(
     () => ({
       sessions,
@@ -335,6 +430,10 @@ export function AppDataProvider({
       harnessLabel,
       connected,
       pendingPermissions,
+      pendingQuestions,
+      replyQuestion,
+      rejectQuestion,
+      loadQuestions,
       createSession,
       renameSession,
       deleteSession,
@@ -358,6 +457,10 @@ export function AppDataProvider({
       harnessLabel,
       connected,
       pendingPermissions,
+      pendingQuestions,
+      replyQuestion,
+      rejectQuestion,
+      loadQuestions,
       createSession,
       renameSession,
       deleteSession,
