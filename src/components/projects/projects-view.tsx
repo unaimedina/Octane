@@ -163,7 +163,7 @@ export function ProjectsView({
               Group sessions by folder and share an AGENTS.md with every chat.
             </p>
           </div>
-          <Button onClick={openCreate} className="brand-glow gap-2">
+          <Button onClick={openCreate} className="gap-2">
             <Plus className="size-4" /> New project
           </Button>
         </div>

@@ -143,7 +143,7 @@ export function ProjectDetail({
               size="sm"
               onClick={() => void startSession()}
               disabled={creating}
-              className="brand-glow gap-1.5"
+              className="gap-1.5"
             >
               {creating ? (
                 <Loader2 className="size-3.5 animate-spin" />

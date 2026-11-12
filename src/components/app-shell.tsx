@@ -344,7 +344,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <Button
           onClick={handleNewSession}
           disabled={creating}
-          className="brand-glow h-9 w-full justify-start gap-2"
+          className="h-9 w-full justify-start gap-2"
         >
           {creating ? (
             <Loader2 className="size-4 animate-spin" />

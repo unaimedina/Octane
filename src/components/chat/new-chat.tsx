@@ -158,7 +158,7 @@ export function NewChat() {
     <div className="scrollbar-thin h-full overflow-y-auto">
       <div className="relative mx-auto flex min-h-full w-full max-w-4xl flex-col justify-center px-5 py-12">
         <div className="animate-in-up">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/35 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/35 px-3 py-1 text-[11px] text-muted-foreground">
             <span
               className={cn(
                 "size-1.5 rounded-full",
@@ -191,7 +191,7 @@ export function NewChat() {
             <Button
               onClick={() => void start()}
               disabled={Boolean(creating)}
-              className="brand-glow h-10 gap-2 px-4"
+              className="h-10 gap-2 px-4"
             >
               {creating === "blank" ? (
                 <Loader2 className="size-4 animate-spin" />

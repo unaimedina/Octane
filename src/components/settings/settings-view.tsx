@@ -128,7 +128,7 @@ function StatusDot({ ok }: { ok: boolean }) {
     <span
       className={cn(
         "size-1.5 rounded-full",
-        ok ? "bg-success shadow-[0_0_8px] shadow-success/50" : "bg-warning",
+        ok ? "bg-success" : "bg-warning",
       )}
     />
   );

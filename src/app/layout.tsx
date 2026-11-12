@@ -1,23 +1,27 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Saira } from "next/font/google";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
   subsets: ["latin"],
   display: "swap",
 });
 
-const interTight = Inter_Tight({
-  variable: "--font-inter-tight",
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+// Display face for headlines only: wide, italic, echoing the OCTANE logo.
+const saira = Saira({
+  variable: "--font-saira",
   subsets: ["latin"],
+  style: ["italic"],
+  axes: ["wdth"],
   display: "swap",
 });
 
@@ -53,8 +57,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#eef1f5" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0f14" },
+    { media: "(prefers-color-scheme: light)", color: "#f2f1ef" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1918" },
   ],
 };
 
@@ -63,7 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full`}
+      className={`${plexSans.variable} ${plexMono.variable} ${saira.variable} h-full`}
     >
       <body className="min-h-full bg-background text-foreground antialiased">
         <Providers>{children}</Providers>

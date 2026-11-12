@@ -5,7 +5,7 @@ export function BrandMark({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative grid size-9 shrink-0 place-items-center rounded-[10px] border border-border/70 bg-[#12171e] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_1px_rgba(255,138,0,0.06)]",
+        "relative grid size-9 shrink-0 place-items-center rounded-md border border-border bg-card",
         className,
       )}
       aria-hidden="true"
@@ -38,24 +38,19 @@ export function BrandLogo({ className }: { className?: string }) {
 
 export function Wordmark({
   className,
-  showBadge = true,
 }: {
   className?: string;
+  /** @deprecated No longer rendered; removed in plan 018. */
   showBadge?: boolean;
 }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5", className)}>
       <BrandMark />
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-[16px] font-semibold uppercase leading-none tracking-[0.04em]">
+        <span className="headline truncate text-[18px] uppercase leading-none">
           <span className="text-brand">OC</span>
           <span className="text-foreground">TANE</span>
         </span>
-        {showBadge ? (
-          <span className="mt-1 font-mono text-[8px] uppercase leading-none tracking-[0.2em] text-muted-foreground/60">
-            OpenCode client
-          </span>
-        ) : null}
       </span>
     </span>
   );
