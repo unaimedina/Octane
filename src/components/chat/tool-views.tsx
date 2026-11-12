@@ -36,7 +36,7 @@ function outputOf(part: ToolPart): string {
 }
 
 const smallCaps =
-  "font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70";
+  "text-[11px] text-muted-foreground";
 const codeBox =
   "scrollbar-thin overflow-auto rounded-md border border-border/60 bg-muted/40 font-mono text-[11px] leading-relaxed";
 
@@ -286,7 +286,7 @@ export function WebView({ part }: ViewProps) {
           href={safeUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex max-w-full items-center gap-1.5 font-mono text-[11px] text-info hover:underline"
+          className="inline-flex max-w-full items-center gap-1.5 font-mono text-[11px] text-foreground underline decoration-border underline-offset-2 hover:decoration-foreground"
         >
           <ExternalLink className="size-3 shrink-0" />
           <span className="truncate">{safeUrl}</span>

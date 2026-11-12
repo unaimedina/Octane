@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Bot, ChevronRight, CircleAlert, Loader2 } from "lucide-react";
+import { ChevronRight, CircleAlert, CornerDownRight, Loader2 } from "lucide-react";
 import { apiJson } from "@/lib/api";
 import { SubagentStepRow } from "@/components/chat/subagent-part";
-import { Badge } from "@/components/ui/badge";
 import { describeTool, sentenceText } from "@/lib/tool-activity";
 import type { MessageWithParts, Session, SubagentStep, ToolPart } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -141,63 +140,49 @@ export function OpenCodeSubagentView({ part }: { part: ToolPart }) {
   const result = cleanOutput(output);
 
   return (
-    <div
-      className={cn(
-        "my-2 overflow-hidden rounded-xl border bg-card/40",
-        failed ? "border-destructive/30" : "border-info/25",
-      )}
-    >
+    <div className="group/tool">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
+        className="-mx-1.5 flex w-[calc(100%+0.75rem)] items-center gap-2.5 rounded-sm px-1.5 py-1 text-left text-[13px] outline-none transition-colors hover:bg-secondary/60 focus-visible:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-ring"
         aria-expanded={open}
+        title={description ?? undefined}
       >
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg border border-info/25 bg-info/10 text-info dark:text-info">
+        <span className="grid size-4 shrink-0 place-items-center">
           {running ? (
-            <Loader2 className="size-3.5 animate-spin" />
+            <Loader2 className="size-[15px] animate-spin text-brand" />
           ) : failed ? (
-            <CircleAlert className="size-3.5 text-destructive" />
+            <CircleAlert className="size-[15px] text-destructive" />
           ) : (
-            <Bot className="size-3.5" />
+            <CornerDownRight className="size-[15px] text-muted-foreground" />
           )}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold">Subagent</span>
-            <span className="rounded bg-info/10 px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-info dark:text-info">
-              {agent}
-            </span>
-            <Badge
-              variant={running ? "secondary" : "outline"}
-              className="font-mono text-[9px]"
-            >
-              {part.state.status === "pending" ? "running" : part.state.status}
-            </Badge>
-            <span className="font-mono text-[10px] text-muted-foreground/60">
-              {steps.length} step{steps.length === 1 ? "" : "s"}
-              {duration ? ` · ${(duration / 1000).toFixed(1)}s` : ""}
-            </span>
-          </span>
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="shrink-0 text-foreground/85">Subagent: {agent}</span>
           {description ? (
-            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-              {description}
-            </span>
+            <span className="truncate text-[12px] text-muted-foreground">{description}</span>
           ) : null}
+          <span className="shrink-0 font-mono text-[12px] text-muted-foreground">
+            {steps.length} step{steps.length === 1 ? "" : "s"}
+            {duration ? ` · ${(duration / 1000).toFixed(1)}s` : ""}
+          </span>
         </span>
+        {failed ? <span className="status-square bg-destructive" aria-label="Failed" /> : null}
         <ChevronRight
           className={cn(
-            "size-3.5 shrink-0 text-muted-foreground/60 transition-transform",
-            open && "rotate-90",
+            "size-3.5 shrink-0 text-muted-foreground transition-[transform,opacity]",
+            open
+              ? "rotate-90 opacity-100"
+              : "opacity-0 group-hover/tool:opacity-100 group-focus-within/tool:opacity-100",
           )}
         />
       </button>
 
       {open ? (
-        <div className="border-t border-border/50 bg-muted/10 px-2.5 py-2">
+        <div className="ml-6 mt-1 space-y-2 border-l border-border pb-1 pl-3">
           {prompt ? (
-            <details className="mb-2 rounded-md border border-border/50 bg-background/50 px-2 py-1.5">
-              <summary className="cursor-pointer list-none text-[10px] font-medium text-muted-foreground">
+            <details className="rounded-md bg-muted px-2 py-1.5">
+              <summary className="cursor-pointer list-none text-[11px] text-muted-foreground hover:text-foreground">
                 Prompt
               </summary>
               <p className="mt-1 max-h-32 overflow-y-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-muted-foreground">
@@ -211,7 +196,7 @@ export function OpenCodeSubagentView({ part }: { part: ToolPart }) {
               {running ? "Waiting for the subagent session…" : "No progress recorded."}
             </p>
           ) : (
-            <div className="scrollbar-thin max-h-72 space-y-1.5 overflow-y-auto pr-0.5">
+            <div className="scrollbar-thin max-h-72 space-y-1 overflow-y-auto pr-0.5">
               {steps.map((step) => (
                 <SubagentStepRow key={step.id} step={step} />
               ))}
@@ -219,8 +204,8 @@ export function OpenCodeSubagentView({ part }: { part: ToolPart }) {
           )}
 
           {result ? (
-            <details className="mt-2 rounded-md border border-success/20 bg-success/5 px-2 py-1.5">
-              <summary className="cursor-pointer list-none text-[10px] font-medium text-success dark:text-success">
+            <details className="rounded-md bg-muted px-2 py-1.5">
+              <summary className="cursor-pointer list-none text-[11px] text-muted-foreground hover:text-foreground">
                 Result
               </summary>
               <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed">
@@ -230,7 +215,7 @@ export function OpenCodeSubagentView({ part }: { part: ToolPart }) {
           ) : null}
 
           {part.state.status === "error" && part.state.error ? (
-            <div className="mt-2 rounded-md border border-destructive/25 bg-destructive/5 px-2 py-1.5 text-[11px] text-destructive">
+            <div className="rounded-md border-l-2 border-destructive bg-destructive/8 px-2 py-1.5 text-[11px] text-destructive">
               {part.state.error}
             </div>
           ) : null}

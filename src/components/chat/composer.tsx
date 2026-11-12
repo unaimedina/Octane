@@ -3,10 +3,10 @@
 import * as React from "react";
 import {
   ArrowUp,
-  AtSign,
   BookPlus,
   Check,
   FileImage,
+  Hammer,
   Paperclip,
   Slash,
   Sparkles,
@@ -178,12 +178,14 @@ export const Composer = React.memo(function Composer({
 
   const canSend = (draft.trim().length > 0 || attachments.length > 0) && !busy;
 
+  const shellMode = draft.startsWith("!");
+
   return (
-    <div className="relative shrink-0 border-t border-border/60 bg-background/85 px-3 pb-3 pt-3 sm:px-5 sm:pb-4">
+    <div className="relative shrink-0 bg-background px-3 pb-3 pt-2 sm:px-5 sm:pb-4">
       <div className="relative mx-auto w-full max-w-3xl">
         {showCommandMenu ? (
-          <div className="glass-float absolute bottom-full left-0 z-20 mb-2 w-full max-w-md overflow-hidden rounded-xl animate-in-up">
-            <div className="border-b border-border/60 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+          <div className="surface-float absolute bottom-full left-0 z-20 mb-2 w-full max-w-md overflow-hidden rounded-lg animate-in-up">
+            <div className="border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">
               Commands
             </div>
             <ul className="max-h-64 overflow-y-auto p-1">
@@ -195,7 +197,7 @@ export const Composer = React.memo(function Composer({
                       onDraftChange(`/${command.name} `);
                       textareaRef.current?.focus();
                     }}
-                    className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent"
+                    className="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent"
                   >
                     <Slash className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0">
@@ -213,15 +215,15 @@ export const Composer = React.memo(function Composer({
           </div>
         ) : null}
 
-        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_60px_-36px_rgba(0,0,0,0.9)] transition-[border-color,box-shadow] focus-within:border-brand/40 focus-within:ring-1 focus-within:ring-brand/15">
+        <div className="relative rounded-lg border border-input bg-card transition-colors focus-within:border-brand/50">
           {attachments.length > 0 || selectedSkills.length > 0 ? (
-            <div className="flex flex-wrap gap-2 border-b border-border/60 p-2.5">
+            <div className="flex flex-wrap gap-2 border-b border-border p-2.5">
               {selectedSkills.map((id) => {
                 const skill = skills.find((item) => item.id === id);
                 return (
                   <div
                     key={`skill-${id}`}
-                    className="flex items-center gap-1.5 rounded-[8px] border border-brand/20 bg-brand/8 py-1 pl-2 pr-1 text-[11px] text-brand"
+                    className="flex items-center gap-1.5 rounded-sm bg-brand/10 py-1 pl-2 pr-1 text-[11px] text-brand"
                   >
                     <Sparkles className="size-3" />
                     <span className="max-w-40 truncate">{skill?.name ?? id}</span>
@@ -232,7 +234,7 @@ export const Composer = React.memo(function Composer({
                           current.filter((item) => item !== id),
                         )
                       }
-                      className="grid size-4 place-items-center rounded hover:bg-brand/15"
+                      className="grid size-4 place-items-center rounded-sm hover:bg-brand/15"
                       aria-label={`Remove skill ${skill?.name ?? id}`}
                     >
                       <X className="size-3" />
@@ -243,13 +245,13 @@ export const Composer = React.memo(function Composer({
               {attachments.map((file, index) => (
                 <div
                   key={`${file.filename}-${index}`}
-                  className="group relative flex items-center gap-2 rounded-lg border border-border/70 bg-muted/40 py-1 pl-1 pr-6"
+                  className="group relative flex items-center gap-2 rounded-md border border-border bg-muted py-1 pl-1 pr-6"
                 >
                   {file.mime.startsWith("image/") ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={file.url} alt="" className="size-8 rounded object-cover" />
+                    <img src={file.url} alt="" className="size-8 rounded-sm object-cover" />
                   ) : (
-                    <span className="grid size-8 place-items-center rounded bg-background">
+                    <span className="grid size-8 place-items-center rounded-sm bg-background">
                       <FileImage className="size-3.5" />
                     </span>
                   )}
@@ -259,7 +261,7 @@ export const Composer = React.memo(function Composer({
                     onClick={() =>
                       setAttachments((current) => current.filter((_, i) => i !== index))
                     }
-                    className="absolute right-1 top-1/2 grid size-4 -translate-y-1/2 place-items-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                    className="absolute right-1 top-1/2 grid size-4 -translate-y-1/2 place-items-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
                     aria-label={`Remove ${file.filename}`}
                   >
                     <X className="size-3" />
@@ -281,174 +283,236 @@ export const Composer = React.memo(function Composer({
             }}
             rows={1}
             placeholder={
-              draft.startsWith("!")
+              shellMode
                 ? "Run a shell command in the workspace…"
                 : busy
                   ? `${harnessLabel} is working…`
-                  : `Ask ${harnessLabel} to build, explain or fix something…`
+                  : "Ask anything…  @ files · / commands · ! shell"
             }
-            className="scrollbar-thin block max-h-[220px] w-full resize-none bg-transparent px-4 pt-3.5 pb-2 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground/60"
+            className="scrollbar-thin block max-h-[220px] min-h-[76px] w-full resize-none bg-transparent px-4 pb-12 pt-3.5 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground"
             aria-label="Message"
           />
 
-          <div className="flex flex-wrap items-center gap-1 px-2 pb-2 pt-0.5">
-            <ModelPicker
-              models={models}
-              value={model}
-              onChange={(next) => {
-                if (next) onModelChange(next);
-              }}
-              label="Model for this conversation"
-            />
+          <div className="absolute bottom-2.5 right-2.5">
+            {busy ? (
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                disabled={aborting}
+                onClick={async () => {
+                  setAborting(true);
+                  try {
+                    await onAbort();
+                  } catch (error) {
+                    toast.error("Could not stop the session", {
+                      description: error instanceof Error ? error.message : undefined,
+                    });
+                  } finally {
+                    setAborting(false);
+                  }
+                }}
+                aria-label="Stop generating"
+              >
+                <Square className="size-3 fill-current" />
+              </Button>
+            ) : (
+              <Button
+                size="icon-sm"
+                disabled={!canSend || sending}
+                onClick={() => void submit()}
+                aria-label="Send message"
+              >
+                <ArrowUp className="size-4" />
+              </Button>
+            )}
+          </div>
+        </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className={
-                draft.startsWith("!")
-                  ? "gap-1.5 bg-info/10 px-2 text-[11px] text-info"
-                  : "gap-1.5 px-2 text-[11px] text-muted-foreground"
-              }
-              onClick={() => {
-                const next = draft.startsWith("!") ? draft.slice(1) : `!${draft}`;
-                onDraftChange(next);
-                textareaRef.current?.focus();
-              }}
-              aria-label="Shell mode"
-              title="Run a shell command (prefix !)"
-            >
-              <Terminal className="size-3.5" />
-              <span className="hidden sm:inline">Shell</span>
-            </Button>
+        <div className="mt-2 flex flex-wrap items-center gap-1 text-[12px] text-muted-foreground">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*,application/pdf"
+            multiple
+            hidden
+            onChange={(event) => {
+              void addFiles(event.target.files);
+              event.target.value = "";
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 px-2 text-[12px] text-muted-foreground"
+            onClick={() => fileRef.current?.click()}
+            aria-label="Attach image"
+          >
+            <Paperclip className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 px-2 text-[12px] text-muted-foreground"
+            onClick={onAddContext}
+            aria-label="Add context"
+            title="Add context without sending a message"
+          >
+            <BookPlus className="size-3.5" />
+            <span className="hidden sm:inline">Add context</span>
+          </Button>
 
-            {commands.length > 0 ? (
-              <Popover open={commandOpen} onOpenChange={setCommandOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 px-2 text-[11px] text-muted-foreground"
-                    aria-label="Slash commands"
-                  >
-                    <Slash className="size-3.5" />
-                    <span className="hidden sm:inline">Slash</span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent side="top" align="start" className="w-80 p-0">
-                  <Command>
-                    <CommandInput placeholder="Search commands…" />
-                    <CommandList className="max-h-72">
-                      <CommandEmpty>No commands found.</CommandEmpty>
-                      <CommandGroup heading="Available commands">
-                        {commands.map((command) => (
+          <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className={
+              shellMode
+                ? "gap-1.5 bg-brand/10 px-2 text-[12px] text-brand"
+                : "gap-1.5 px-2 text-[12px] text-muted-foreground"
+            }
+            onClick={() => {
+              const next = shellMode ? draft.slice(1) : `!${draft}`;
+              onDraftChange(next);
+              textareaRef.current?.focus();
+            }}
+            aria-label="Shell mode"
+            aria-pressed={shellMode}
+            title="Run a shell command (prefix !)"
+          >
+            <Terminal className="size-3.5" />
+            <span className="hidden sm:inline">Shell</span>
+          </Button>
+
+          {commands.length > 0 ? (
+            <Popover open={commandOpen} onOpenChange={setCommandOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 px-2 text-[12px] text-muted-foreground"
+                  aria-label="Slash commands"
+                >
+                  <Slash className="size-3.5" />
+                  <span className="hidden sm:inline">Slash</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-80 p-0">
+                <Command>
+                  <CommandInput placeholder="Search commands…" />
+                  <CommandList className="max-h-72">
+                    <CommandEmpty>No commands found.</CommandEmpty>
+                    <CommandGroup heading="Available commands">
+                      {commands.map((command) => (
+                        <CommandItem
+                          key={command.name}
+                          value={`${command.name} ${command.description ?? ""}`}
+                          onSelect={() => {
+                            onDraftChange(`/${command.name} `);
+                            setCommandOpen(false);
+                            textareaRef.current?.focus();
+                          }}
+                          className="items-start gap-2"
+                        >
+                          <Slash className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-mono text-xs">
+                              /{command.name}
+                            </span>
+                            {command.description ? (
+                              <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+                                {command.description}
+                              </span>
+                            ) : null}
+                          </span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          ) : null}
+
+          {skills.length > 0 ? (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 px-2 text-[12px] text-muted-foreground"
+                  aria-label="Skills"
+                >
+                  <Sparkles className="size-3.5" />
+                  <span className="hidden sm:inline">Skills</span>
+                  {selectedSkills.length > 0 ? (
+                    <span className="rounded-sm bg-brand/15 px-1.5 font-mono text-[10px] text-brand">
+                      {selectedSkills.length}
+                    </span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" className="w-80 p-0">
+                <Command>
+                  <CommandInput placeholder="Search skills…" />
+                  <CommandList className="max-h-72">
+                    <CommandEmpty>No skills found.</CommandEmpty>
+                    <CommandGroup heading="Available skills">
+                      {skills.map((skill) => {
+                        const active = selectedSkills.includes(skill.id);
+                        return (
                           <CommandItem
-                            key={command.name}
-                            value={`${command.name} ${command.description ?? ""}`}
+                            key={skill.id}
+                            value={`${skill.name} ${skill.description ?? ""} ${skill.id}`}
                             onSelect={() => {
-                              onDraftChange(`/${command.name} `);
-                              setCommandOpen(false);
-                              textareaRef.current?.focus();
+                              setSelectedSkills((current) =>
+                                current.includes(skill.id)
+                                  ? current.filter((id) => id !== skill.id)
+                                  : [...current, skill.id],
+                              );
                             }}
                             className="items-start gap-2"
                           >
-                            <Slash className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+                            <Sparkles className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
                             <span className="min-w-0 flex-1">
-                              <span className="block font-mono text-xs">
-                                /{command.name}
-                              </span>
-                              {command.description ? (
-                                <span className="mt-0.5 block text-[10px] leading-relaxed text-muted-foreground">
-                                  {command.description}
+                              <span className="flex items-center gap-1.5">
+                                <span className="truncate text-xs font-medium">
+                                  {skill.name}
                                 </span>
-                              ) : null}
-                            </span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            ) : null}
-
-            {skills.length > 0 ? (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 px-2 text-[11px] text-muted-foreground"
-                    aria-label="Skills"
-                  >
-                    <Sparkles className="size-3.5" />
-                    <span className="hidden sm:inline">Skills</span>
-                    {selectedSkills.length > 0 ? (
-                      <span className="rounded-[6px] bg-brand/15 px-1.5 font-mono text-[9px] text-brand">
-                        {selectedSkills.length}
-                      </span>
-                    ) : null}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent side="top" align="start" className="w-80 p-0">
-                  <Command>
-                    <CommandInput placeholder="Search skills…" />
-                    <CommandList className="max-h-72">
-                      <CommandEmpty>No skills found.</CommandEmpty>
-                      <CommandGroup heading="Available skills">
-                        {skills.map((skill) => {
-                          const active = selectedSkills.includes(skill.id);
-                          return (
-                            <CommandItem
-                              key={skill.id}
-                              value={`${skill.name} ${skill.description ?? ""} ${skill.id}`}
-                              onSelect={() => {
-                                setSelectedSkills((current) =>
-                                  current.includes(skill.id)
-                                    ? current.filter((id) => id !== skill.id)
-                                    : [...current, skill.id],
-                                );
-                              }}
-                              className="items-start gap-2"
-                            >
-                              <span className="mt-0.5 grid size-5 shrink-0 place-items-center rounded border border-border/60 bg-muted/40">
-                                <Sparkles className="size-3" />
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="flex items-center gap-1.5">
-                                  <span className="truncate text-xs font-medium">
-                                    {skill.name}
-                                  </span>
-                                  {skill.autoinvoke ? (
-                                    <span className="rounded bg-muted px-1 font-mono text-[8px] uppercase tracking-wider text-muted-foreground">
-                                      auto
-                                    </span>
-                                  ) : null}
-                                </span>
-                                {skill.description ? (
-                                  <span className="mt-0.5 block max-h-8 overflow-hidden text-[10px] leading-relaxed text-muted-foreground">
-                                    {skill.description}
+                                {skill.autoinvoke ? (
+                                  <span className="rounded-sm bg-muted px-1 font-mono text-[10px] text-muted-foreground">
+                                    auto
                                   </span>
                                 ) : null}
                               </span>
-                              {active ? (
-                                <Check className="mt-0.5 size-3.5 shrink-0 text-brand" />
+                              {skill.description ? (
+                                <span className="mt-0.5 block max-h-8 overflow-hidden text-[11px] leading-relaxed text-muted-foreground">
+                                  {skill.description}
+                                </span>
                               ) : null}
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            ) : null}
+                            </span>
+                            {active ? (
+                              <Check className="mt-0.5 size-3.5 shrink-0 text-brand" />
+                            ) : null}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          ) : null}
 
+          <div className="ml-auto flex min-w-0 items-center gap-1">
             {primaryAgents.length > 0 ? (
               <Select value={agent} onValueChange={onAgentChange}>
                 <SelectTrigger
                   size="sm"
-                  className="h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-[11px] text-muted-foreground shadow-none focus-visible:ring-1"
+                  className="h-7 w-auto gap-1.5 border-0 bg-transparent px-2 text-[12px] text-muted-foreground shadow-none focus-visible:ring-1"
+                  aria-label="Agent"
                 >
+                  <Hammer className="size-3.5" />
                   <SelectValue placeholder="Agent" />
                 </SelectTrigger>
                 <SelectContent side="top" align="start">
@@ -460,85 +524,18 @@ export const Composer = React.memo(function Composer({
                 </SelectContent>
               </Select>
             ) : null}
-
-            <div className="ml-auto flex items-center gap-1">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,application/pdf"
-                multiple
-                hidden
-                onChange={(event) => {
-                  void addFiles(event.target.files);
-                  event.target.value = "";
-                }}
-              />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground"
-                onClick={onAddContext}
-                aria-label="Add context"
-                title="Add context without sending a message"
-              >
-                <BookPlus className="size-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground"
-                onClick={() => fileRef.current?.click()}
-                aria-label="Attach image"
-              >
-                <Paperclip className="size-3.5" />
-              </Button>
-              <span className="hidden items-center gap-1 px-1 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/40 sm:flex">
-                <AtSign className="size-3" /> files
-              </span>
-              {busy ? (
-                <Button
-                  variant="secondary"
-                  size="icon-sm"
-                  disabled={aborting}
-                  onClick={async () => {
-                    setAborting(true);
-                    try {
-                      await onAbort();
-                    } catch (error) {
-                      toast.error("Could not stop the session", {
-                        description: error instanceof Error ? error.message : undefined,
-                      });
-                    } finally {
-                      setAborting(false);
-                    }
-                  }}
-                  aria-label="Stop generating"
-                >
-                  <Square className="size-3 fill-current" />
-                </Button>
-              ) : (
-                <Button
-                  size="icon-sm"
-                  disabled={!canSend || sending}
-                  onClick={() => void submit()}
-                  aria-label="Send message"
-                >
-                  <ArrowUp className="size-4" />
-                </Button>
-              )}
-            </div>
+            {primaryAgents.length > 0 ? (
+              <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
+            ) : null}
+            <ModelPicker
+              models={models}
+              value={model}
+              onChange={(next) => {
+                if (next) onModelChange(next);
+              }}
+              label="Model for this conversation"
+            />
           </div>
-        </div>
-
-        <div className="mt-2 flex items-center justify-between px-1 text-[10px] text-muted-foreground/60">
-          <span className="hidden sm:inline">
-            <kbd className="font-mono">Enter</kbd> to send ·{" "}
-            <kbd className="font-mono">Shift+Enter</kbd> for newline
-          </span>
-          <span className="flex items-center gap-2 font-mono">
-            <span>/ commands</span>
-            <span>! shell</span>
-          </span>
         </div>
       </div>
     </div>

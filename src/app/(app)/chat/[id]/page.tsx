@@ -23,10 +23,10 @@ export default async function ChatSessionPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ prompt?: string }>;
+  searchParams: Promise<{ prompt?: string; send?: string }>;
 }) {
   const { id } = await params;
-  const { prompt } = await searchParams;
+  const { prompt, send } = await searchParams;
   const auth = await requireSession();
 
   let session;
@@ -74,6 +74,7 @@ export default async function ChatSessionPage({
       backendSessionID={backend.backendID}
       hasRepo={repository}
       initialDraft={prompt ?? ""}
+      autoSend={send === "1"}
     />
   );
 }
