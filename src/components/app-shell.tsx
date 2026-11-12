@@ -824,8 +824,12 @@ function SidebarContent({
 
 function PermissionCenter() {
   const { pendingPermissions, respondPermission } = useAppData();
+  const pathname = usePathname();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const permission = pendingPermissions[0];
+  // The open session answers its own permissions inline (chat-view); the modal
+  // is only for requests from other sessions.
+  const openId = pathname?.startsWith("/chat/") ? pathname.split("/")[2] : undefined;
+  const permission = pendingPermissions.find((item) => item.sessionID !== openId);
   if (!permission) return null;
 
   async function respond(response: "once" | "always" | "reject") {

@@ -180,115 +180,139 @@ function ShellCard({ part }: { part: ToolPart }) {
     }
   }
 
+  const succeeded = state.status === "completed" && (exitCode === undefined || exitCode === 0);
+
   return (
-    <div
-      className={cn(
-        "my-2 overflow-hidden rounded-xl border bg-card/40 transition-colors",
-        failed ? "border-destructive/30" : "border-border/80",
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
-        aria-expanded={open}
-      >
-        <span
-          className={cn(
-            "grid size-6 shrink-0 place-items-center rounded-md border border-border/70 bg-muted/60",
-            failed && "border-destructive/30 bg-destructive/10 text-destructive",
-          )}
-        >
-          {running ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+    <div className="group/tool">
+      <ToolRowButton
+        open={open}
+        onToggle={() => setOpen((value) => !value)}
+        title={description ? `${command} · ${description}` : command}
+        icon={
+          running ? (
+            <Loader2 className="size-[15px] animate-spin text-brand" />
           ) : failed ? (
-            <CircleAlert className="size-3.5" />
+            <CircleAlert className="size-[15px] text-destructive" />
           ) : (
-            <Terminal className="size-3.5 text-muted-foreground" />
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
-            <span className="shrink-0 font-mono text-[11px] text-success dark:text-success">
-              $
+            <Terminal className="size-[15px] text-muted-foreground" />
+          )
+        }
+        trailing={
+          failed || (exitCode !== undefined && exitCode !== 0) ? (
+            <span className="flex items-center gap-1.5 font-mono text-[11px] text-destructive">
+              {exitCode !== undefined ? `exit ${exitCode}` : null}
+              <span className="status-square bg-destructive" aria-label="Failed" />
             </span>
-            <span className="truncate font-mono text-[11px]">{command}</span>
-          </span>
-          {description ? (
-            <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-              {description}
-            </span>
-          ) : null}
-        </span>
-        <span
-          className={cn(
-            "shrink-0 rounded px-1.5 py-px font-mono text-[9px] uppercase tracking-wider",
-            running && "bg-info/10 text-info dark:text-info",
-            failed && "bg-destructive/10 text-destructive",
-            !running && !failed && "bg-success/10 text-success dark:text-success",
-          )}
-        >
-          {running
-            ? "running"
-            : failed
-              ? "failed"
-              : exitCode !== undefined
-                ? `exit ${exitCode}`
-                : "completed"}
-        </span>
-        <ChevronRight
-          className={cn(
-            "size-3.5 shrink-0 text-muted-foreground/60 transition-transform",
-            open && "rotate-90",
-          )}
-        />
-      </button>
+          ) : succeeded ? (
+            <Check className="size-[13px] text-muted-foreground" aria-label="Completed" />
+          ) : null
+        }
+      >
+        <span className="shrink-0 text-foreground/85">{running ? "Running" : "Ran"}</span>
+        <span className="truncate font-mono text-[12px]">{command}</span>
+      </ToolRowButton>
 
       {open ? (
-        <div className="border-t border-border/60 bg-[#090d12]">
-          <div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
-            <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[#a1a7b3]">
-              <Terminal className="size-3" /> Terminal
-            </span>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="text-[#a1a7b3] hover:bg-white/10 hover:text-[#f8fafc]"
-              onClick={() => void copy()}
-              disabled={!output && !command}
-              aria-label="Copy shell command and output"
-              title="Copy command and output"
-            >
-              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-            </Button>
-          </div>
-          <pre className="scrollbar-thin max-h-80 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[11px] leading-relaxed text-[#f8fafc]">
-            <span className="text-success">$ </span>
-            {command}
-            {"\n\n"}
-            {running && !output
-              ? "Running…"
-              : output
-                ? output.length > 20_000
-                  ? `${output.slice(0, 20_000)}\n… truncated`
+        <ToolRowBody>
+          <div className="overflow-hidden rounded-md bg-muted">
+            <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
+              <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Terminal className="size-3 shrink-0" />
+                <span className="truncate">{description || "Terminal"}</span>
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => void copy()}
+                disabled={!output && !command}
+                aria-label="Copy shell command and output"
+                title="Copy command and output"
+              >
+                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+              </Button>
+            </div>
+            <pre className="scrollbar-thin max-h-80 overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-[12px] leading-relaxed text-foreground">
+              <span className="text-muted-foreground">$ </span>
+              {command}
+              {"\n\n"}
+              <span className={failed ? "text-destructive" : "text-muted-foreground"}>
+                {running && !output
+                  ? "Running…"
                   : output
-                : "No output."}
-          </pre>
-        </div>
+                    ? output.length > 20_000
+                      ? `${output.slice(0, 20_000)}\n… truncated`
+                      : output
+                    : "No output."}
+              </span>
+            </pre>
+          </div>
+        </ToolRowBody>
       ) : null}
     </div>
   );
 }
 
+/** One-line tool row header: icon, sentence, trailing marker, hover chevron. */
+function ToolRowButton({
+  open,
+  onToggle,
+  title,
+  icon,
+  trailing,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  title?: string;
+  icon: React.ReactNode;
+  trailing?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="-mx-1.5 flex w-[calc(100%+0.75rem)] items-center gap-2.5 rounded-sm px-1.5 py-1 text-left text-[13px] outline-none transition-colors hover:bg-secondary/60 focus-visible:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-ring"
+      aria-expanded={open}
+      title={title}
+    >
+      <span className="grid size-4 shrink-0 place-items-center">{icon}</span>
+      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">{children}</span>
+      {trailing}
+      <ChevronRight
+        className={cn(
+          "size-3.5 shrink-0 text-muted-foreground transition-[transform,opacity]",
+          open
+            ? "rotate-90 opacity-100"
+            : "opacity-0 group-hover/tool:opacity-100 group-focus-within/tool:opacity-100",
+        )}
+      />
+    </button>
+  );
+}
+
+function ToolRowBody({ children }: { children: React.ReactNode }) {
+  return <div className="ml-6 mt-1 space-y-3 border-l border-border pb-1 pl-3">{children}</div>;
+}
+
+/** "+18 −2" from an edit sentence, or null for every other detail (never +0 −0). */
+function diffCounts(kind: ToolKind, detail: string | undefined): { add: string; del: string } | null {
+  if (kind !== "edit" || !detail) return null;
+  const match = /^\+(\d+) −(\d+)$/.exec(detail);
+  if (!match || (match[1] === "0" && match[2] === "0")) return null;
+  return { add: match[1], del: match[2] };
+}
+
 function RawDetails({ label, text, tone }: { label: string; text: string; tone?: "error" }) {
   return (
-    <details className="rounded-md border border-border/60 bg-muted/20">
-      <summary className="cursor-pointer list-none px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
+    <details className="rounded-md bg-muted">
+      <summary className="cursor-pointer list-none px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground">
         {label}
       </summary>
       <pre
         className={cn(
-          "scrollbar-thin max-h-56 overflow-auto border-t border-border/60 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words",
+          "scrollbar-thin max-h-56 overflow-auto border-t border-border p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words",
           tone === "error" && "text-destructive",
         )}
       >
@@ -307,63 +331,45 @@ function ToolCard({ part }: { part: ToolPart }) {
   const sentence = React.useMemo(() => describeTool(part, root), [part, root]);
   const Icon = kindIcons[sentence.kind] ?? Wrench;
   const fullText = sentenceText(sentence);
+  const counts = diffCounts(sentence.kind, sentence.detail);
 
   return (
-    <div
-      className={cn(
-        "my-2 overflow-hidden rounded-xl border bg-card/40 transition-colors",
-        failed ? "border-destructive/30" : "border-border/80",
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
-        aria-expanded={open}
+    <div className="group/tool">
+      <ToolRowButton
+        open={open}
+        onToggle={() => setOpen((value) => !value)}
         title={fullText}
-      >
-        <span
-          className={cn(
-            "grid size-6 shrink-0 place-items-center rounded-md border border-border/70 bg-muted/60",
-            failed && "border-destructive/30 bg-destructive/10 text-destructive",
-          )}
-        >
-          {running ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+        icon={
+          running ? (
+            <Loader2 className="size-[15px] animate-spin text-brand" />
           ) : failed ? (
-            <CircleAlert className="size-3.5" />
+            <CircleAlert className="size-[15px] text-destructive" />
           ) : (
-            <Icon className="size-3.5 text-muted-foreground" />
-          )}
-        </span>
-        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-          <span className="shrink-0 text-xs text-foreground/90">{sentence.verb}</span>
-          {sentence.target ? (
-            <span className="truncate font-mono text-[11px]">{sentence.target}</span>
-          ) : null}
-          {sentence.detail ? (
-            <span
-              className={cn(
-                "shrink-0 text-[11px] text-muted-foreground",
-                failed && "max-w-[40%] truncate text-destructive/80",
-              )}
-            >
-              · {sentence.detail}
-            </span>
-          ) : null}
-        </span>
-        {running ? (
-          <span className="size-1.5 shrink-0 rounded-full bg-info pulse-dot" />
-        ) : failed ? (
-          <span className="size-1.5 shrink-0 rounded-full bg-destructive" />
+            <Icon className="size-[15px] text-muted-foreground" />
+          )
+        }
+        trailing={failed ? <span className="status-square bg-destructive" aria-label="Failed" /> : null}
+      >
+        <span className="shrink-0 text-foreground/85">{sentence.verb}</span>
+        {sentence.target ? (
+          <span className="truncate font-mono text-[12px]">{sentence.target}</span>
         ) : null}
-        <ChevronRight
-          className={cn(
-            "size-3.5 shrink-0 text-muted-foreground/60 transition-transform",
-            open && "rotate-90",
-          )}
-        />
-      </button>
+        {counts ? (
+          <span className="shrink-0 font-mono text-[12px]">
+            <span className="text-success">+{counts.add}</span>{" "}
+            <span className="text-destructive">−{counts.del}</span>
+          </span>
+        ) : sentence.detail ? (
+          <span
+            className={cn(
+              "shrink-0 font-mono text-[12px] text-muted-foreground",
+              failed && "max-w-[40%] truncate text-destructive",
+            )}
+          >
+            · {sentence.detail}
+          </span>
+        ) : null}
+      </ToolRowButton>
 
       {open ? <ToolCardBody part={part} root={root} target={sentence.target} /> : null}
     </div>
@@ -401,7 +407,7 @@ function ToolCardBody({
   const rawInput = JSON.stringify(state.input, null, 2);
 
   return (
-    <div className="space-y-3 border-t border-border/60 bg-background/40 px-3 py-3">
+    <ToolRowBody>
       {specialised ? (
         <>
           <SpecialisedToolView part={part} root={root} />
@@ -415,9 +421,9 @@ function ToolCardBody({
               {edits.map((edit, index) => (
                 <div
                   key={`${edit.file ?? "file"}-${index}`}
-                  className="overflow-hidden rounded-lg border border-border/60"
+                  className="overflow-hidden rounded-md bg-muted"
                 >
-                  <div className="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-2.5 py-1.5 font-mono text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 border-b border-border px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground">
                     <FilePen className="size-3" />
                     <span className="truncate">{edit.file ?? target}</span>
                   </div>
@@ -437,13 +443,13 @@ function ToolCardBody({
 
           {output ? (
             <div>
-              <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
+              <div className="mb-1 text-[11px] text-muted-foreground">
                 {failed ? "Error" : "Output"}
               </div>
               <pre
                 className={cn(
-                  "scrollbar-thin max-h-80 overflow-auto rounded-md border border-border/60 bg-muted/40 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words",
-                  failed && "border-destructive/30 bg-destructive/5 text-destructive",
+                  "scrollbar-thin max-h-80 overflow-auto rounded-md bg-muted p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words",
+                  failed && "text-destructive",
                 )}
               >
                 {output.length > 20_000 ? `${output.slice(0, 20_000)}\n… truncated` : output}
@@ -462,13 +468,13 @@ function ToolCardBody({
                 key={attachment.id}
                 src={attachment.url}
                 alt={attachment.filename ?? "attachment"}
-                className="max-h-56 rounded-lg border border-border object-contain"
+                className="max-h-56 rounded-md border border-border object-contain"
               />
             ) : null,
           )}
         </div>
       ) : null}
-    </div>
+    </ToolRowBody>
   );
 }
 
@@ -478,36 +484,24 @@ export function ExploreGroup({ parts }: { parts: ToolPart[] }) {
   const [open, setOpen] = React.useState(failed);
 
   return (
-    <div
-      className={cn(
-        "my-2 overflow-hidden rounded-xl border bg-card/40 transition-colors",
-        failed ? "border-destructive/30" : "border-border/80",
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
-        aria-expanded={open}
+    <div className="group/tool">
+      <ToolRowButton
+        open={open}
+        onToggle={() => setOpen((value) => !value)}
         title={summary.text}
-      >
-        <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border/70 bg-muted/60">
-          {summary.running ? (
-            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+        icon={
+          summary.running ? (
+            <Loader2 className="size-[15px] animate-spin text-brand" />
           ) : (
-            <Search className="size-3.5 text-muted-foreground" />
-          )}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-xs text-foreground/90">{summary.text}</span>
-        <ChevronRight
-          className={cn(
-            "size-3.5 shrink-0 text-muted-foreground/60 transition-transform",
-            open && "rotate-90",
-          )}
-        />
-      </button>
+            <Search className="size-[15px] text-muted-foreground" />
+          )
+        }
+        trailing={failed ? <span className="status-square bg-destructive" aria-label="Failed" /> : null}
+      >
+        <span className="truncate text-foreground/85">{summary.text}</span>
+      </ToolRowButton>
       {open ? (
-        <div className="space-y-1 border-t border-border/60 bg-background/40 p-2 [&>div]:my-0">
+        <div className="ml-6 mt-1 space-y-0.5 border-l border-border pl-3">
           {parts.map((part) => (
             <ToolCallPart key={part.id} part={part} />
           ))}

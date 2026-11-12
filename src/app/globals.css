@@ -270,6 +270,11 @@
     border-radius: 2px;
     flex-shrink: 0;
   }
+  /* ActivityBar (plan 016): an orange window sweeps across slanted segments. */
+  .activity-seg-active {
+    animation: activity-sweep 1.6s linear infinite;
+    animation-delay: calc(var(--i) * 0.1s);
+  }
 }
 
 @keyframes in-up {
@@ -304,6 +309,17 @@
   }
 }
 
+@keyframes activity-sweep {
+  0%,
+  37% {
+    background-color: var(--brand);
+  }
+  38%,
+  100% {
+    background-color: color-mix(in oklab, var(--muted-foreground) 25%, transparent);
+  }
+}
+
 @keyframes shimmer {
   from {
     background-position: 200% 0;
@@ -316,8 +332,8 @@
 /* ---------- Markdown ---------- */
 
 .md {
-  font-size: 0.9375rem;
-  line-height: 1.7;
+  font-size: 0.875rem;
+  line-height: 1.65;
   overflow-wrap: anywhere;
 }
 .md > *:first-child {
@@ -524,6 +540,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* Static activity bar: the last segments stay lit instead of sweeping. */
+  .activity-seg-active {
+    animation: none !important;
+  }
+  .activity-seg-active[data-lit] {
+    background-color: var(--brand);
+  }
   *,
   *::before,
   *::after {
