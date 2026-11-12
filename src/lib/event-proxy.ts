@@ -1,6 +1,6 @@
 import { apiFlavor, upstreamFetch } from "./upstream";
 import { getMessageById, getSession, getSessionDiff } from "./oc-server";
-import { normalizeQuestionRequest } from "./questions";
+import { formToQuestionRequest, normalizeQuestionRequest } from "./questions";
 import type { SessionStatus } from "./types";
 
 type Raw = Record<string, unknown>;
@@ -488,6 +488,24 @@ export async function openEventStream(signal: AbortSignal): Promise<Response> {
         emit({
           type: type.includes("rejected") ? "question.rejected" : "question.replied",
           properties: { sessionID, requestID },
+        } as never);
+        return;
+      }
+
+      case "form.created": {
+        const request = formToQuestionRequest(data.form ?? data);
+        if (!request) return;
+        emit({ type: "question.asked", properties: request } as never);
+        return;
+      }
+
+      case "form.replied":
+      case "form.cancelled": {
+        const requestID = str(data.id);
+        if (!requestID) return;
+        emit({
+          type: type === "form.cancelled" ? "question.rejected" : "question.replied",
+          properties: { sessionID: str(data.sessionID, sessionID), requestID },
         } as never);
         return;
       }

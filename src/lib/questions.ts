@@ -1,5 +1,6 @@
-export type QuestionOption = { label: string; description: string };
+export type QuestionOption = { label: string; description: string; value?: string };
 export type QuestionInfo = {
+  key?: string;
   question: string;
   header: string;
   options: QuestionOption[];
@@ -123,6 +124,94 @@ export function validateAnswers(value: unknown): string[][] | null {
       answer.push(text);
     }
     result.push(answer);
+  }
+  return result;
+}
+
+function formOptions(field: Obj): QuestionOption[] {
+  const options: QuestionOption[] = [];
+  if (!Array.isArray(field.options)) return options;
+  for (const o of field.options) {
+    const opt = obj(o);
+    if (!opt || typeof opt.label !== "string") continue;
+    options.push({
+      label: opt.label,
+      value: typeof opt.value === "string" ? opt.value : opt.label,
+      description: typeof opt.description === "string" ? opt.description : "",
+    });
+  }
+  return options;
+}
+
+/** Converts an OpenCode form (question tool on 2.2+) into a QuestionRequest. */
+export function formToQuestionRequest(value: unknown): QuestionRequest | null {
+  let form = obj(value);
+  if (!form) return null;
+  const wrapped = obj(form.form);
+  if (wrapped) form = wrapped;
+  const id = form.id;
+  const sessionID = form.sessionID;
+  if (typeof id !== "string" || !id) return null;
+  if (typeof sessionID !== "string" || !sessionID) return null;
+  if (!Array.isArray(form.fields) || form.fields.length === 0) return null;
+
+  const questions: QuestionInfo[] = [];
+  for (const item of form.fields) {
+    const field = obj(item);
+    if (!field) return null;
+    const key = field.key;
+    if (typeof key !== "string" || !key) return null;
+    if (field.hidden === true) return null;
+    if (Array.isArray(field.when) && field.when.length > 0) return null;
+    const options = formOptions(field);
+    let multiple: boolean;
+    let custom: boolean;
+    if (field.type === "string") {
+      multiple = false;
+      custom = options.length > 0 ? field.custom === true : true;
+    } else if (field.type === "multiselect") {
+      multiple = true;
+      custom = field.custom === true;
+      if (options.length === 0 && !custom) return null;
+    } else {
+      return null;
+    }
+    const title = typeof field.title === "string" ? field.title : "";
+    const question =
+      (typeof field.description === "string" && field.description) ||
+      title ||
+      (typeof form.title === "string" && form.title) ||
+      key;
+    questions.push({ key, question, header: title, options, multiple, custom });
+  }
+
+  const request: QuestionRequest = { id, sessionID, questions };
+  const tool = obj(obj(form.metadata)?.tool);
+  if (tool && typeof tool.messageID === "string" && typeof tool.id === "string") {
+    request.tool = { messageID: tool.messageID, callID: tool.id };
+  }
+  return request;
+}
+
+/** Builds the form answer record from answers in question order. */
+export function toFormAnswer(
+  request: QuestionRequest,
+  answers: string[][],
+): Record<string, string | string[]> | null {
+  if (answers.length !== request.questions.length) return null;
+  const result: Record<string, string | string[]> = {};
+  for (let i = 0; i < request.questions.length; i++) {
+    const question = request.questions[i];
+    if (!question.key) return null;
+    const mapped = answers[i].map((text) => {
+      const option = question.options.find((o) => o.label === text);
+      return option ? (option.value ?? option.label) : text;
+    });
+    if (question.multiple === true) result[question.key] = mapped;
+    else {
+      if (mapped.length === 0) return null;
+      result[question.key] = mapped[0];
+    }
   }
   return result;
 }

@@ -26,7 +26,12 @@ import type {
   ToolState,
   UserMessage,
 } from "./types";
-import { normalizeQuestionRequest, type QuestionRequest } from "./questions";
+import {
+  formToQuestionRequest,
+  normalizeQuestionRequest,
+  toFormAnswer,
+  type QuestionRequest,
+} from "./questions";
 import { apiFlavor, UpstreamError, upstreamFetch, upstreamJson } from "./upstream";
 import { serverAuthHeader } from "./env";
 
@@ -1262,7 +1267,36 @@ export async function summarizeSession(
   });
 }
 
+async function listQuestionForms(sessionID: string): Promise<QuestionRequest[] | null> {
+  try {
+    const result = await upstreamJson<unknown>(
+      `/api/session/${encodeURIComponent(sessionID)}/form`,
+    );
+    const data = Array.isArray(result)
+      ? result
+      : (result as { data?: unknown } | undefined)?.data;
+    const requests: QuestionRequest[] = [];
+    for (const item of Array.isArray(data) ? data : []) {
+      const request = formToQuestionRequest(item);
+      if (request) {
+        if (request.sessionID === sessionID) requests.push(request);
+      } else {
+        const id = (item as { id?: unknown } | null)?.id;
+        console.warn("[questions] unsupported form", typeof id === "string" ? id : "");
+      }
+    }
+    return requests;
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) return null;
+    throw error;
+  }
+}
+
 export async function listQuestions(sessionID: string): Promise<QuestionRequest[]> {
+  if ((await apiFlavor()) === "v2") {
+    const forms = await listQuestionForms(sessionID);
+    if (forms) return forms;
+  }
   try {
     let items: unknown[];
     if ((await apiFlavor()) === "v2") {
@@ -1294,6 +1328,21 @@ export async function replyQuestion(
   requestID: string,
   answers: string[][],
 ): Promise<void> {
+  if (requestID.startsWith("frm_")) {
+    const base = `/api/session/${encodeURIComponent(sessionID)}/form/${encodeURIComponent(requestID)}`;
+    const result = await upstreamJson<unknown>(base);
+    const detail = (result as { data?: unknown } | undefined)?.data;
+    const request = formToQuestionRequest(detail);
+    if (!request) throw new UpstreamError("This form type is not supported yet.", 422);
+    const answer = toFormAnswer(request, answers);
+    if (!answer) throw new UpstreamError("Answer every question.", 400);
+    await upstreamJson(`${base}/reply`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ answer }),
+    });
+    return;
+  }
   const path =
     (await apiFlavor()) === "v2"
       ? `/api/session/${encodeURIComponent(sessionID)}/question/${encodeURIComponent(requestID)}/reply`
@@ -1306,6 +1355,13 @@ export async function replyQuestion(
 }
 
 export async function rejectQuestion(sessionID: string, requestID: string): Promise<void> {
+  if (requestID.startsWith("frm_")) {
+    await upstreamJson(
+      `/api/session/${encodeURIComponent(sessionID)}/form/${encodeURIComponent(requestID)}`,
+      { method: "DELETE" },
+    );
+    return;
+  }
   const path =
     (await apiFlavor()) === "v2"
       ? `/api/session/${encodeURIComponent(sessionID)}/question/${encodeURIComponent(requestID)}/reject`
