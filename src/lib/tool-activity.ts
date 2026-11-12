@@ -343,5 +343,6 @@ export function currentActivity(messages: MessageLike[], root?: string): string 
     break;
   }
   if (tail?.type === "reasoning" && !tail.time?.end) return "Thinking…";
-  if (tail?.type === "text" && !tail.time?.end) return "Writing the response…";  return null;
+  if (tail?.type === "text" && !tail.time?.end) return "Writing the response…";
+  return null;
 }
