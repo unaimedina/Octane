@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildAnswers,
+  formToQuestionRequest,
+  toFormAnswer,
   normalizeQuestionRequest,
   toggleOption,
   validateAnswers,
@@ -119,4 +121,69 @@ test("validateAnswers", () => {
   assert.equal(validateAnswers([[" "]]), null);
   assert.equal(validateAnswers(Array.from({ length: 21 }, () => ["a"])), null);
   assert.equal(validateAnswers([Array.from({ length: 51 }, () => "a")]), null);
+});
+
+const form = {
+  id: "frm_1", sessionID: "ses_1", title: "Questions",
+  metadata: { kind: "question", tool: { messageID: "msg_1", id: "call_1" } },
+  fields: [
+    { key: "q0", title: "Test", description: "¿Te gusta?", type: "string", custom: true,
+      options: [{ value: "Sí", label: "Sí", description: "Primera" }, { value: "No", label: "No", description: "Segunda" }] },
+    { key: "q1", title: "Colores", description: "¿Cuáles?", type: "multiselect", custom: true,
+      options: [{ value: "Rojo", label: "Rojo" }, { value: "Azul", label: "Azul" }] },
+  ],
+};
+
+test("formToQuestionRequest converts a question form", () => {
+  const r = formToQuestionRequest(form)!;
+  assert.equal(r.id, "frm_1");
+  assert.equal(r.sessionID, "ses_1");
+  assert.equal(r.questions.length, 2);
+  const q0 = r.questions[0];
+  assert.equal(q0.key, "q0");
+  assert.equal(q0.header, "Test");
+  assert.equal(q0.question, "¿Te gusta?");
+  assert.equal(q0.multiple, false);
+  assert.equal(q0.custom, true);
+  assert.equal(q0.options.length, 2);
+  assert.equal(r.questions[1].multiple, true);
+  assert.deepEqual(r.tool, { messageID: "msg_1", callID: "call_1" });
+});
+
+test("formToQuestionRequest unwraps { form }", () => {
+  assert.deepEqual(formToQuestionRequest({ form }), formToQuestionRequest(form));
+});
+
+test("formToQuestionRequest rejects unsupported forms", () => {
+  const withField = (f: unknown) => ({ ...form, fields: [f] });
+  assert.equal(formToQuestionRequest(withField({ key: "a", type: "boolean" })), null);
+  assert.equal(
+    formToQuestionRequest(
+      withField({ key: "a", type: "string", when: [{ key: "q0", op: "eq", value: "Sí" }] }),
+    ),
+    null,
+  );
+  assert.equal(formToQuestionRequest({ ...form, id: undefined }), null);
+  assert.equal(formToQuestionRequest({ ...form, fields: [] }), null);
+});
+
+test("formToQuestionRequest accepts a plain string field", () => {
+  const r = formToQuestionRequest({ ...form, fields: [{ key: "q0", type: "string" }] })!;
+  assert.equal(r.questions.length, 1);
+  assert.equal(r.questions[0].options.length, 0);
+  assert.equal(r.questions[0].custom, true);
+});
+
+test("toFormAnswer maps answers to form values", () => {
+  const r = formToQuestionRequest(form)!;
+  assert.deepEqual(toFormAnswer(r, [["Sí"], ["Rojo", "verde"]]), {
+    q0: "Sí",
+    q1: ["Rojo", "verde"],
+  });
+  const y = formToQuestionRequest({
+    ...form,
+    fields: [{ key: "q0", type: "string", options: [{ value: "y", label: "Yes" }] }],
+  })!;
+  assert.deepEqual(toFormAnswer(y, [["Yes"]]), { q0: "y" });
+  assert.equal(toFormAnswer(r, [["Sí"]]), null);
 });
