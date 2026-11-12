@@ -17,6 +17,7 @@ import type {
   Skill,
 } from "@/lib/types";
 import type { UsageSummary } from "@/lib/usage";
+import { normalizeQuestionRequest, type QuestionRequest } from "@/lib/questions";
 
 type AppDataValue = {
   sessions: Session[];
@@ -33,6 +34,10 @@ type AppDataValue = {
   harnessLabel: string;
   connected: boolean;
   pendingPermissions: Permission[];
+  pendingQuestions: QuestionRequest[];
+  replyQuestion: (request: QuestionRequest, answers: string[][]) => Promise<void>;
+  rejectQuestion: (request: QuestionRequest) => Promise<void>;
+  loadQuestions: (sessionID: string) => Promise<void>;
   createSession: (options?: { title?: string; directory?: string }) => Promise<Session>;
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -109,6 +114,7 @@ export function AppDataProvider({
   const [sessions, setSessions] = React.useState(() => sortSessions(initialSessions));
   const [statuses, setStatuses] = React.useState(initialStatuses);
   const [pendingPermissions, setPendingPermissions] = React.useState<Permission[]>([]);
+  const [pendingQuestions, setPendingQuestions] = React.useState<QuestionRequest[]>([]);
   const [connected, setConnected] = React.useState(false);
   const handlers = React.useRef(new Set<(event: Event) => void>());
 
@@ -153,6 +159,21 @@ export function AppDataProvider({
 
     const handleEvent = (event: Event) => {
       if (!event || typeof event.type !== "string") return;
+      // The v1 SDK `Event` union has no question events, so read them loosely.
+      const loose = event as unknown as { type: string; properties?: unknown };
+      if (loose.type === "question.asked") {
+        const request = normalizeQuestionRequest(loose.properties);
+        if (request) {
+          setPendingQuestions((current) =>
+            current.some((item) => item.id === request.id) ? current : [...current, request],
+          );
+        }
+      } else if (loose.type === "question.replied" || loose.type === "question.rejected") {
+        const props = (loose.properties ?? {}) as { requestID?: unknown };
+        if (typeof props.requestID === "string") {
+          setPendingQuestions((current) => current.filter((item) => item.id !== props.requestID));
+        }
+      }
       switch (event.type) {
         case "server.connected":
           setConnected(true);
@@ -319,6 +340,40 @@ export function AppDataProvider({
     [],
   );
 
+  const replyQuestion = React.useCallback(
+    async (request: QuestionRequest, answers: string[][]) => {
+      await api(
+        `/sessions/${encodeURIComponent(request.sessionID)}/questions/${encodeURIComponent(request.id)}`,
+        { method: "POST", ...jsonBody({ answers }) },
+      );
+      setPendingQuestions((current) => current.filter((item) => item.id !== request.id));
+    },
+    [],
+  );
+
+  const rejectQuestion = React.useCallback(async (request: QuestionRequest) => {
+    await api(
+      `/sessions/${encodeURIComponent(request.sessionID)}/questions/${encodeURIComponent(request.id)}`,
+      { method: "DELETE" },
+    );
+    setPendingQuestions((current) => current.filter((item) => item.id !== request.id));
+  }, []);
+
+  const loadQuestions = React.useCallback(async (sessionID: string) => {
+    try {
+      const found = await apiJson<QuestionRequest[]>(
+        `/sessions/${encodeURIComponent(sessionID)}/questions`,
+      );
+      if (!Array.isArray(found) || found.length === 0) return;
+      setPendingQuestions((current) => {
+        const fresh = found.filter((item) => !current.some((known) => known.id === item.id));
+        return fresh.length ? [...current, ...fresh] : current;
+      });
+    } catch {
+      // Catch-up only; live events are the main path.
+    }
+  }, []);
+
   const value = React.useMemo<AppDataValue>(
     () => ({
       sessions,
@@ -335,6 +390,10 @@ export function AppDataProvider({
       harnessLabel,
       connected,
       pendingPermissions,
+      pendingQuestions,
+      replyQuestion,
+      rejectQuestion,
+      loadQuestions,
       createSession,
       renameSession,
       deleteSession,
@@ -358,6 +417,10 @@ export function AppDataProvider({
       harnessLabel,
       connected,
       pendingPermissions,
+      pendingQuestions,
+      replyQuestion,
+      rejectQuestion,
+      loadQuestions,
       createSession,
       renameSession,
       deleteSession,

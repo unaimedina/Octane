@@ -33,6 +33,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
 import { Wordmark } from "@/components/brand";
+import { QuestionCenter } from "@/components/question-center";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -737,7 +738,8 @@ function PermissionCenter() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { sessions, health, connected, username, harnessLabel } = useAppData();
+  const { sessions, health, connected, username, harnessLabel, pendingPermissions } =
+    useAppData();
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const title = React.useMemo(() => {
@@ -848,6 +850,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <PermissionCenter />
+      {pendingPermissions.length === 0 ? <QuestionCenter /> : null}
     </div>
   );
 }
