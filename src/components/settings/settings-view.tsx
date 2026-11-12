@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Activity,
+  Bell,
   Check,
   Copy,
   Cpu,
@@ -38,6 +39,8 @@ import { SkillInstaller } from "@/components/settings/skill-installer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { getSoundsEnabled, playSound, setSoundsEnabled, unlockAudio } from "@/lib/sounds";
 import { readCsrfCookie } from "@/lib/api";
 import { CSRF_HEADER } from "@/lib/constants";
 import type {
@@ -169,8 +172,14 @@ export function SettingsView({
   const [renewing, setRenewing] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
+  const [soundsOn, setSoundsOn] = React.useState(true);
+
   React.useEffect(() => {
     queueMicrotask(() => setMounted(true));
+  }, []);
+
+  React.useEffect(() => {
+    queueMicrotask(() => setSoundsOn(getSoundsEnabled()));
   }, []);
 
   React.useEffect(() => {
@@ -295,6 +304,52 @@ export function SettingsView({
               <CopyRow label="Worktree" value={pathInfo?.worktree ?? "unknown"} />
               <CopyRow label="Config" value={pathInfo?.config ?? "unknown"} />
               <CopyRow label="State" value={pathInfo?.state ?? "unknown"} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Bell className="size-4" /> Notifications
+              </CardTitle>
+              <CardDescription>
+                Sounds when a session finishes or needs your input.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm">Play sounds</span>
+                <Switch
+                  checked={soundsOn}
+                  aria-label="Play sounds"
+                  onCheckedChange={(value) => {
+                    setSoundsOn(value);
+                    setSoundsEnabled(value);
+                  }}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    unlockAudio();
+                    playSound("done", { force: true });
+                  }}
+                >
+                  Test finish sound
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    unlockAudio();
+                    playSound("attention", { force: true });
+                  }}
+                >
+                  Test input sound
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
