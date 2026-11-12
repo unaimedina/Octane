@@ -136,19 +136,19 @@ export function WorkerDialog({
     <Dialog open={worker !== null} onOpenChange={onOpenChange}>
       <DialogContent className="flex h-[80vh] flex-col gap-3 sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="truncate pr-8">{worker?.title ?? "Worker"}</DialogTitle>
+          <DialogTitle className="headline truncate pr-8 text-[20px]">{worker?.title ?? "Worker"}</DialogTitle>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span
                 className={cn(
-                  "size-1.5 rounded-full",
-                  busy ? "bg-info pulse-dot" : "bg-muted-foreground/40",
+                  "status-square",
+                  busy ? "bg-brand" : "bg-muted-foreground/50",
                 )}
               />
               {busy ? "Running" : "Idle"}
             </span>
             {ownsRun && run?.outcome ? (
-              <Badge variant="outline" className="max-w-full truncate">
+              <Badge variant="outline" className="max-w-full truncate font-mono text-[11px]">
                 {run.summary ? `${run.outcome}: ${run.summary}` : run.outcome}
               </Badge>
             ) : null}
@@ -164,7 +164,7 @@ export function WorkerDialog({
 
         <DialogFooter>
           {canStop && task ? (
-            <Button variant="outline" onClick={() => onStop?.(task)}>
+            <Button variant="ghost" className="hover:text-destructive" onClick={() => onStop?.(task)}>
               Stop
             </Button>
           ) : null}
@@ -176,7 +176,7 @@ export function WorkerDialog({
               </Link>
             </Button>
           ) : null}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button onClick={() => onOpenChange(false)}>
             Close
           </Button>
         </DialogFooter>

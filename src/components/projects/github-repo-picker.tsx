@@ -85,7 +85,7 @@ export function GithubRepoPicker({
   }
 
   const chip = value?.repo ? (
-    <div className="flex items-center gap-2 rounded-[10px] border border-border/60 bg-card/30 px-2.5 py-2">
+    <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-2.5 py-2">
       <GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
         {value.repo}
@@ -105,7 +105,7 @@ export function GithubRepoPicker({
   return (
     <div className="space-y-2">
       {!github.configured ? (
-        <p className="rounded-[10px] border border-dashed border-border/60 bg-muted/15 px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
           GitHub is not configured on this deployment. Set{" "}
           <span className="font-mono">GITHUB_CLIENT_ID</span> and{" "}
           <span className="font-mono">GITHUB_CLIENT_SECRET</span> to link

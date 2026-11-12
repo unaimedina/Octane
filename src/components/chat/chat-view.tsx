@@ -3,21 +3,20 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowRight,
   BookOpen,
   Bot,
-  Bug,
-  Check,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Copy,
-  FlaskConical,
   GitPullRequest,
   Loader2,
   MessageSquare,
   MoreHorizontal,
   PanelRight,
   Pencil,
+  ShieldAlert,
   Sparkles,
   Trash2,
   Wand2,
@@ -25,8 +24,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
-import { BrandMark } from "@/components/brand";
+import { ActivityBar } from "@/components/chat/activity-bar";
 import { ContextPanel } from "@/components/chat/context-panel";
+import { DotMatrixEmblem } from "@/components/chat/dot-matrix-emblem";
 import {
   PlanFilesImportDialog,
   type PlanFilePreviewItem,
@@ -37,6 +37,7 @@ import { SubagentPartView } from "@/components/chat/subagent-part";
 import { ExploreGroup, ToolCallPart, ToolRootContext } from "@/components/chat/tool-part";
 import { currentActivity, groupExploration, isExploreTool } from "@/lib/tool-activity";
 import { WorkerDialog } from "@/components/chat/worker-dialog";
+import { TopBarActions } from "@/components/top-bar-slot";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -88,6 +89,7 @@ import type {
   MessageWithParts,
   ModelOption,
   Part,
+  Permission,
   Session,
   Skill,
   SubagentPart,
@@ -178,6 +180,16 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`;
 }
 
+const compactNumber = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
+
+function formatCompact(value: number): string {
+  return compactNumber.format(value).toLowerCase();
+}
+
+function lastSegment(path: string | null | undefined): string | undefined {
+  return path?.split(/[\\/]/).filter(Boolean).pop();
+}
+
 function errorLabel(error: unknown): string | null {
   if (!error || typeof error !== "object") return null;
   const value = error as { name?: string; data?: { message?: string } };
@@ -208,20 +220,18 @@ const ReasoningBlock = React.memo(function ReasoningBlock({
     <details
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
-      className="group/reasoning my-2 overflow-hidden rounded-lg border border-border/60 bg-muted/20"
+      className="group/reasoning"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
-        <Sparkles className="size-3.5" />
-        <span className="font-medium">Reasoning</span>
+      <summary className="-mx-1.5 flex cursor-pointer list-none items-center gap-2.5 rounded-sm px-1.5 py-1 text-[13px] text-muted-foreground outline-none transition-colors hover:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <Sparkles className="size-[15px] shrink-0" />
+        <span>Reasoning</span>
         {duration ? (
-          <span className="font-mono text-[10px] text-muted-foreground/60">
-            {(duration / 1000).toFixed(1)}s
-          </span>
+          <span className="font-mono text-[12px]">{(duration / 1000).toFixed(1)}s</span>
         ) : null}
-        <ChevronRight className="ml-auto size-3 transition-transform group-open/reasoning:rotate-90" />
+        <ChevronRight className="size-3.5 shrink-0 opacity-0 transition-[transform,opacity] group-open/reasoning:rotate-90 group-open/reasoning:opacity-100 group-hover/reasoning:opacity-100" />
       </summary>
       {open ? (
-        <div className="border-t border-border/50 px-3 py-2 text-[13px] text-muted-foreground">
+        <div className="ml-6 mt-1 border-l border-border pl-3 text-[13px] text-muted-foreground">
           <div className="md">
             <Markdown text={text} highlight={false} />
           </div>
@@ -238,7 +248,7 @@ function FileAttachment({ part }: { part: FilePart }) {
       <img
         src={part.url}
         alt={part.filename ?? "Attached image"}
-        className="my-2 max-h-72 rounded-lg border border-border object-contain"
+        className="my-2 max-h-72 rounded-md border border-border object-contain"
       />
     );
   }
@@ -246,7 +256,7 @@ function FileAttachment({ part }: { part: FilePart }) {
     <a
       href={part.url}
       download={part.filename}
-      className="my-1 inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs hover:bg-muted"
+      className="my-1 inline-flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-1 text-xs hover:bg-secondary"
     >
       {part.filename ?? part.mime}
     </a>
@@ -268,9 +278,9 @@ const AssistantPart = React.memo(function AssistantPart({
       if (!part.text.trim()) return null;
       if (streaming) {
         return (
-          <div className="relative whitespace-pre-wrap break-words text-[14px] leading-relaxed">
+          <div className="relative whitespace-pre-wrap break-words text-[14px] leading-[1.65]">
             {part.text}
-            <span className="ml-0.5 inline-block h-4 w-[3px] translate-y-0.5 animate-pulse rounded-full bg-foreground/70 align-middle" />
+            <span className="ml-0.5 inline-block h-4 w-[3px] translate-y-0.5 animate-pulse rounded-[1px] bg-brand align-middle" />
           </div>
         );
       }
@@ -289,18 +299,24 @@ const AssistantPart = React.memo(function AssistantPart({
       return <FileAttachment part={part} />;
     case "subtask":
       return (
-        <div className="my-2 rounded-lg border border-info/25 bg-info/5 p-3">
-          <div className="flex items-center gap-2 text-[11px] font-medium text-info dark:text-info">
-            <Sparkles className="size-3.5" /> Subtask · {part.agent}
-          </div>
-          <div className="mt-1 text-sm">{part.description}</div>
-          <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{part.prompt}</p>
-        </div>
+        <details className="group/subtask">
+          <summary className="-mx-1.5 flex cursor-pointer list-none items-center gap-2.5 rounded-sm px-1.5 py-1 text-[13px] outline-none transition-colors hover:bg-secondary/60 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+            <Sparkles className="size-[15px] shrink-0 text-muted-foreground" />
+            <span className="shrink-0 text-foreground/85">Subtask · {part.agent}</span>
+            <span className="min-w-0 truncate text-[12px] text-muted-foreground">
+              {part.description}
+            </span>
+            <ChevronRight className="ml-auto size-3.5 shrink-0 text-muted-foreground opacity-0 transition-[transform,opacity] group-open/subtask:rotate-90 group-open/subtask:opacity-100 group-hover/subtask:opacity-100" />
+          </summary>
+          <p className="ml-6 mt-1 whitespace-pre-wrap border-l border-border pl-3 text-[13px] text-muted-foreground">
+            {part.prompt}
+          </p>
+        </details>
       );
     case "retry":
       return (
-        <div className="my-2 flex items-center gap-2 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs text-warning dark:text-warning">
-          <Loader2 className="size-3.5 animate-spin" />
+        <div className="flex items-center gap-2.5 py-1 text-[13px] text-warning">
+          <Loader2 className="size-[15px] animate-spin" />
           Retrying (attempt {part.attempt})…
         </div>
       );
@@ -320,7 +336,7 @@ const AssistantPart = React.memo(function AssistantPart({
           {part.files.slice(0, 3).map((file) => (
             <span
               key={file}
-              className="max-w-48 truncate rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]"
+              className="max-w-48 truncate rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[11px]"
             >
               {file}
             </span>
@@ -339,7 +355,7 @@ const UserMessageView = React.memo(function UserMessageView({
 }) {
   return (
     <div className="flex flex-col items-end gap-1.5">
-      <div className="max-w-[88%] rounded-2xl rounded-br-lg border border-border/70 bg-card/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="max-w-[85%] rounded-md bg-secondary px-4 py-3 text-[14px] leading-relaxed">
         {message.parts.map((part) => {
           if (part.type === "text") {
             return (
@@ -356,7 +372,7 @@ const UserMessageView = React.memo(function UserMessageView({
             return (
               <span
                 key={part.id}
-                className="mt-1 inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground"
+                className="mt-1 inline-flex items-center gap-1 rounded-sm bg-background px-1.5 font-mono text-[11px] text-muted-foreground"
               >
                 @{part.name}
               </span>
@@ -365,7 +381,7 @@ const UserMessageView = React.memo(function UserMessageView({
           return null;
         })}
       </div>
-      <div className="flex items-center gap-2 pr-1 font-mono text-[10px] text-muted-foreground/75">
+      <div className="flex items-center gap-2 pr-1 font-mono text-[11px] text-muted-foreground">
         {message.info.role === "user" && message.info.agent ? (
           <span>{message.info.agent}</span>
         ) : null}
@@ -393,45 +409,37 @@ const ContextMessageView = React.memo(function ContextMessageView({
   const [expanded, setExpanded] = React.useState(false);
 
   return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg border border-success/25 bg-success/8 text-success dark:text-success">
-        <BookOpen className="size-3.5" />
-      </div>
-      <div className="min-w-0 flex-1 rounded-xl border border-dashed border-success/30 bg-success/4 px-3.5 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-success dark:text-success">
-            <Check className="size-2.5" />
-            Context loaded
-          </span>
-          {description ? (
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {description}
-            </span>
-          ) : null}
-          {collapsible ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((value) => !value)}
-              className="ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/70 transition-colors hover:bg-muted/50 hover:text-foreground"
-            >
-              {expanded ? (
-                <ChevronUp className="size-3" />
-              ) : (
-                <ChevronDown className="size-3" />
-              )}
-              {expanded ? "Hide" : "Show"} · {text.length.toLocaleString("en-US")} chars
-            </button>
-          ) : null}
-        </div>
-        {!collapsible || expanded ? (
-          <div className="mt-1.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed">
-            {text}
-          </div>
+    <div>
+      <div className="flex min-w-0 items-center gap-2.5 py-1 text-[13px]">
+        <BookOpen className="size-[15px] shrink-0 text-muted-foreground" />
+        <span className="min-w-0 truncate text-foreground/85">
+          {description?.trim().startsWith("Context from ")
+            ? description
+            : `Context from ${description || "a note"}`}
+        </span>
+        <span className="shrink-0 font-mono text-[12px] text-muted-foreground">
+          {text.length.toLocaleString("en-US")} chars
+        </span>
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+            aria-expanded={expanded}
+          >
+            {expanded ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            {expanded ? "Hide" : "Show"}
+          </button>
         ) : null}
-        <div className="mt-1.5 font-mono text-[10px] text-muted-foreground/50">
-          <span suppressHydrationWarning>{formatTime(message.info.time.created)}</span> ·
-          not sent as a prompt
+      </div>
+      {!collapsible || expanded ? (
+        <div className="ml-6 mt-1 whitespace-pre-wrap break-words border-l border-border pl-3 text-[13px] leading-relaxed">
+          {text}
         </div>
+      ) : null}
+      <div className="ml-6 mt-1 font-mono text-[11px] text-muted-foreground">
+        <span suppressHydrationWarning>{formatTime(message.info.time.created)}</span> · not sent
+        as a prompt
       </div>
     </div>
   );
@@ -467,56 +475,52 @@ const AssistantMessageView = React.memo(function AssistantMessageView({
   const duration = info.time.completed ? info.time.completed - info.time.created : undefined;
   const error = errorLabel(info.error);
 
+  const tokens = info.tokens.input + info.tokens.output;
+
   return (
-    <div className="flex gap-3">
-      <BrandMark className="mt-0.5 size-7 rounded-lg" />
-      <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex items-center gap-2">
-          <span className="text-[13px] font-semibold tracking-tight">{harnessLabel}</span>
-          <span className="font-mono text-[10px] text-muted-foreground/60">
-            {info.modelID}
-          </span>
-          {streaming ? (
-            <span className="flex items-center gap-1 rounded-full bg-info/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-info dark:text-info">
-              <Loader2 className="size-2.5 animate-spin" /> live
+    <div className="min-w-0">
+      <div className="mb-2 text-[12px] text-muted-foreground">
+        {harnessLabel} · <span className="font-mono">{info.modelID}</span>
+      </div>
+
+      <div className="space-y-1.5">
+        {items.map((item) =>
+          item.type === "explore" ? (
+            <ExploreGroup
+              key={item.parts[0].id}
+              parts={item.parts.filter((part) => part.type === "tool")}
+            />
+          ) : (
+            <AssistantPart
+              key={item.part.id}
+              part={item.part}
+              streaming={streaming && item.part === lastTextPart}
+            />
+          ),
+        )}
+      </div>
+
+      {error ? (
+        <div className="mt-2 rounded-md border-l-2 border-destructive bg-destructive/8 px-3 py-2 text-xs text-destructive">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="mt-2 font-mono text-[11px] text-muted-foreground">
+        {[
+          <span key="time" suppressHydrationWarning>
+            {formatTime(info.time.created)}
+          </span>,
+          duration ? <span key="duration">{(duration / 1000).toFixed(1)}s</span> : null,
+          info.cost > 0 ? <span key="cost">{formatCost(info.cost)}</span> : null,
+          tokens > 0 ? (
+            <span key="tokens">
+              {formatCompact(info.tokens.input)} in / {formatCompact(info.tokens.output)} out
             </span>
-          ) : null}
-        </div>
-
-        <div className="space-y-2">
-          {items.map((item) =>
-            item.type === "explore" ? (
-              <ExploreGroup
-                key={item.parts[0].id}
-                parts={item.parts.filter((part) => part.type === "tool")}
-              />
-            ) : (
-              <AssistantPart
-                key={item.part.id}
-                part={item.part}
-                streaming={streaming && item.part === lastTextPart}
-              />
-            ),
-          )}
-        </div>
-
-        {error ? (
-          <div className="mt-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
-          </div>
-        ) : null}
-
-        <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-[10px] text-muted-foreground/75">
-          <span suppressHydrationWarning>{formatTime(info.time.created)}</span>
-          {duration ? <span>{(duration / 1000).toFixed(1)}s</span> : null}
-          {info.cost > 0 ? <span>{formatCost(info.cost)}</span> : null}
-          {info.tokens.input + info.tokens.output > 0 ? (
-            <span>
-              {info.tokens.input.toLocaleString()} in /{" "}
-              {info.tokens.output.toLocaleString()} out
-            </span>
-          ) : null}
-        </div>
+          ) : null,
+        ]
+          .filter(Boolean)
+          .flatMap((node, index) => (index === 0 ? [node] : [<span key={`sep-${index}`}> · </span>, node]))}
       </div>
     </div>
   );
@@ -524,26 +528,105 @@ const AssistantMessageView = React.memo(function AssistantMessageView({
 
 const suggestions = [
   {
-    icon: Sparkles,
     title: "Explore this codebase",
     prompt: "Give me a tour of this codebase. What does it do, how is it structured, and where should I start?",
   },
   {
-    icon: Bug,
     title: "Find and fix a bug",
     prompt: "Look for the most likely bug in the current uncommitted changes, explain it, and fix it.",
   },
   {
-    icon: FlaskConical,
     title: "Write tests",
     prompt: "Identify the most important untested behavior in this project and write focused tests for it.",
   },
   {
-    icon: GitPullRequest,
     title: "Review changes",
     prompt: "Review the uncommitted changes like a senior engineer. Point out correctness, security and performance issues.",
   },
 ];
+
+/** Inline permission request for the open session (the modal handles other sessions). */
+function InlinePermission({
+  permission,
+  onRespond,
+}: {
+  permission: Permission;
+  onRespond: (permission: Permission, response: "once" | "always" | "reject") => Promise<void>;
+}) {
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const metadata = permission.metadata ?? {};
+  const command =
+    typeof metadata.command === "string"
+      ? metadata.command
+      : typeof metadata.description === "string"
+        ? metadata.description
+        : null;
+
+  async function respond(response: "once" | "always" | "reject") {
+    setBusy(response);
+    try {
+      await onRespond(permission, response);
+    } catch (error) {
+      toast.error("Could not send permission response", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div
+      className="rounded-md border border-border border-l-2 border-l-brand bg-card px-3 py-2.5"
+      role="group"
+      aria-label="Permission request"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <ShieldAlert className="size-3.5 shrink-0 text-brand" />
+        <span className="min-w-0 truncate text-[13px]">{permission.title}</span>
+        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{permission.type}</span>
+      </div>
+      {command ? (
+        <pre className="scrollbar-thin mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-muted px-2 py-1.5 font-mono text-[12px]">
+          {command}
+        </pre>
+      ) : null}
+      {permission.pattern ? (
+        <div className="mt-1.5 text-[12px] text-muted-foreground">
+          Pattern:{" "}
+          <span className="font-mono text-foreground">
+            {Array.isArray(permission.pattern) ? permission.pattern.join(", ") : permission.pattern}
+          </span>
+        </div>
+      ) : null}
+      <div className="mt-2.5 flex flex-wrap justify-end gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          disabled={Boolean(busy)}
+          onClick={() => void respond("reject")}
+        >
+          {busy === "reject" ? <Loader2 className="size-3.5 animate-spin" /> : null}
+          Reject
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={Boolean(busy)}
+          onClick={() => void respond("always")}
+        >
+          {busy === "always" ? <Loader2 className="size-3.5 animate-spin" /> : null}
+          Always
+        </Button>
+        <Button size="sm" autoFocus disabled={Boolean(busy)} onClick={() => void respond("once")}>
+          {busy === "once" ? <Loader2 className="size-3.5 animate-spin" /> : null}
+          Allow once
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function ChatView({
   initialSession,
@@ -559,6 +642,7 @@ export function ChatView({
   backendSessionID,
   hasRepo,
   initialDraft = "",
+  autoSend = false,
 }: {
   initialSession: Session;
   initialMessages: MessageWithParts[];
@@ -573,6 +657,8 @@ export function ChatView({
   backendSessionID: string;
   hasRepo: boolean;
   initialDraft?: string;
+  /** Send `initialDraft` once on mount (the /chat start box). */
+  autoSend?: boolean;
 }) {
   const router = useRouter();
   const {
@@ -584,6 +670,8 @@ export function ChatView({
     deleteSession,
     hideSessions,
     loadQuestions,
+    pendingPermissions,
+    respondPermission,
   } = useAppData();
 
   const [session, setSession] = React.useState(initialSession);
@@ -660,6 +748,8 @@ export function ChatView({
   const flushTimer = React.useRef<number | null>(null);
   const earlierScrollHeight = React.useRef<number | null>(null);
   const restoredModel = React.useRef(false);
+  const [modelRestored, setModelRestored] = React.useState(false);
+  const autoSent = React.useRef(false);
   const taskRefreshTimer = React.useRef<number | null>(null);
 
   const createTask = React.useCallback(
@@ -955,6 +1045,7 @@ export function ChatView({
       } catch {
         // ignore malformed storage
       }
+      setModelRestored(true);
     });
   }, [models, session.id]);
 
@@ -1422,6 +1513,29 @@ export function ChatView({
     [agents, agent, commands, model, pendingContexts, scheduleRefresh, session.id],
   );
 
+  // One-shot send from the /chat start box (`?prompt=…&send=1`). The URL is
+  // cleaned first so a reload can't send twice; the ref and the timer (cleared
+  // on Strict Mode's simulated unmount) make it run exactly once.
+  const modelsSettled = models.length === 0 || modelRestored;
+  React.useEffect(() => {
+    if (!autoSend || autoSent.current || !initialDraft.trim() || !modelsSettled) return;
+    const timer = window.setTimeout(() => {
+      if (autoSent.current) return;
+      autoSent.current = true;
+      router.replace(`/chat/${session.id}`);
+      setDraft("");
+      void handleSend({ text: initialDraft, attachments: [], skills: [], agent: undefined }).catch(
+        (error: unknown) => {
+          setDraft(initialDraft);
+          toast.error("Message failed", {
+            description: error instanceof Error ? error.message : "Unknown error",
+          });
+        },
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [autoSend, handleSend, initialDraft, modelsSettled, router, session.id]);
+
   const handleAbort = React.useCallback(async () => {
     await apiJson(`/sessions/${encodeURIComponent(session.id)}/abort`, {
       method: "POST",
@@ -1735,47 +1849,81 @@ export function ChatView({
     () => (busy ? currentActivity(visibleMessages, session.directory) : null),
     [busy, visibleMessages, session.directory],
   );
+  const pendingPermission = pendingPermissions.find(
+    (permission) => permission.sessionID === session.id,
+  );
+  const sessionSummary = [
+    session.id,
+    totals.cost > 0 ? formatCost(totals.cost) : null,
+    diff.length > 0 ? `${diff.length} file${diff.length === 1 ? "" : "s"}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const emptyFolder = lastSegment(session.directory || pathInfo?.directory);
 
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="glass-bar flex h-14 shrink-0 items-center gap-3 border-b px-3 sm:px-5">
-          <div className="min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => {
-                setTitleDraft(session.title);
-                setRenameOpen(true);
-              }}
-              className="group flex max-w-full items-center gap-1.5 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              title="Rename session"
-            >
-              <h1 className="truncate text-sm font-semibold tracking-tight">
-                {session.title || "Untitled session"}
-              </h1>
-              <Pencil className="size-3 shrink-0 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/60" />
-            </button>
-            <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-muted-foreground/75">
-              <span className="hidden sm:inline">{session.id}</span>
-              {totals.cost > 0 ? <span>{formatCost(totals.cost)}</span> : null}
-              {diff.length > 0 ? (
-                <span>
-                  {diff.length} file{diff.length === 1 ? "" : "s"}
-                </span>
-              ) : null}
-            </div>
-          </div>
-
+        <TopBarActions>
           {status.type === "retry" ? (
-            <span className="hidden items-center gap-1.5 rounded-full border border-warning/25 bg-warning/8 px-2.5 py-1 text-[11px] text-warning sm:flex dark:text-warning">
-              <Loader2 className="size-3 animate-spin" />
-              Retry {status.attempt}
+            <span className="flex items-center gap-1.5 px-1 text-[12px] text-warning" title="Retrying">
+              <Loader2 className="size-3.5 animate-spin" />
+              <span className="hidden sm:inline">Retry {status.attempt}</span>
             </span>
           ) : busy ? (
-            <span className="hidden items-center gap-1.5 rounded-full border border-info/20 bg-info/8 px-2.5 py-1 text-[11px] text-info sm:flex dark:text-info">
-              <span className="size-1.5 rounded-full bg-info pulse-dot" />
-              Working
+            <span className="flex items-center gap-2 px-1 text-[12px] text-muted-foreground" title="Working">
+              <span className="status-square bg-brand" aria-hidden="true" />
+              <span className="hidden sm:inline">Working</span>
             </span>
+          ) : null}
+
+          {/* TODO(context-meter): plan 016 owner decision #1, needs limit.context in ModelOption. */}
+          {workers.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" aria-label="Subagents">
+                  <Bot className="size-4" />
+                  <span className="hidden sm:inline">Subagents</span>
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {runningWorkers > 0
+                      ? `${runningWorkers}/${workers.length}`
+                      : workers.length}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                {workers.map((worker) => {
+                  const running =
+                    statuses[worker.sessionID]?.type === "busy" ||
+                    statuses[worker.sessionID]?.type === "retry";
+                  const run = tasks.find((item) => item.id === worker.taskId)?.run;
+                  const outcome =
+                    run?.sessionID === worker.sessionID ? run.outcome : undefined;
+                  const dot = running
+                    ? "bg-brand"
+                    : outcome === "done"
+                      ? "bg-success"
+                      : outcome === "blocked" || outcome === "error" || outcome === "aborted"
+                        ? "bg-destructive"
+                        : "bg-muted-foreground/50";
+                  return (
+                    <DropdownMenuItem
+                      key={worker.sessionID}
+                      onSelect={() => setOpenWorkerID(worker.sessionID)}
+                    >
+                      <span className={`status-square ${dot}`} aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate">{worker.title}</span>
+                      <span
+                        className="shrink-0 font-mono text-[11px] text-muted-foreground"
+                        suppressHydrationWarning
+                      >
+                        {formatTime(worker.startedAt)}
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
 
           <Button
@@ -1797,61 +1945,26 @@ export function ChatView({
             <PanelRight className="size-4" />
           </Button>
 
-          {workers.length > 0 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" aria-label="Subagents">
-                  <Bot className="size-4" />
-                  <span className="hidden sm:inline">Subagents</span>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
-                    {runningWorkers > 0
-                      ? `${runningWorkers}/${workers.length}`
-                      : workers.length}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                {workers.map((worker) => {
-                  const running =
-                    statuses[worker.sessionID]?.type === "busy" ||
-                    statuses[worker.sessionID]?.type === "retry";
-                  const run = tasks.find((item) => item.id === worker.taskId)?.run;
-                  const outcome =
-                    run?.sessionID === worker.sessionID ? run.outcome : undefined;
-                  const dot = running
-                    ? "bg-info pulse-dot"
-                    : outcome === "done"
-                      ? "bg-success"
-                      : outcome === "blocked" || outcome === "error" || outcome === "aborted"
-                        ? "bg-destructive"
-                        : "bg-muted-foreground/40";
-                  return (
-                    <DropdownMenuItem
-                      key={worker.sessionID}
-                      onSelect={() => setOpenWorkerID(worker.sessionID)}
-                    >
-                      <span className={`size-1.5 shrink-0 rounded-full ${dot}`} />
-                      <span className="min-w-0 flex-1 truncate">{worker.title}</span>
-                      <span
-                        className="shrink-0 text-[10px] text-muted-foreground"
-                        suppressHydrationWarning
-                      >
-                        {formatTime(worker.startedAt)}
-                      </span>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null}
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-sm" aria-label="Session actions">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Session actions"
+                title={sessionSummary}
+              >
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onSelect={() => {
+                  setTitleDraft(session.title);
+                  setRenameOpen(true);
+                }}
+              >
+                <Pencil className="size-4" /> Rename
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setContextDialogOpen(true)}>
                 <BookOpen className="size-4" /> Add context
               </DropdownMenuItem>
@@ -1879,7 +1992,8 @@ export function ChatView({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+          <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+        </TopBarActions>
 
         <div className="relative min-h-0 flex-1">
           <div
@@ -1889,47 +2003,32 @@ export function ChatView({
           >
             <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
               {showEmpty ? (
-                <div className="animate-fade flex min-h-[calc(100dvh-19rem)] flex-col justify-center py-10">
-                  <div className="mb-6 flex items-center gap-3">
-                    <BrandMark className="size-10 rounded-xl" />
-                    <div>
-                      <h2 className="text-lg font-semibold tracking-tight">
-                        What should we build?
-                      </h2>
-                      <p className="text-xs text-muted-foreground">
-                        {session.directory || pathInfo?.directory || "Workspace"} · new session
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {suggestions.map((suggestion) => (
-                      <button
-                        key={suggestion.title}
-                        type="button"
-                        onClick={() => setDraft(suggestion.prompt)}
-                        className="group flex items-start gap-3 rounded-xl border border-border/60 bg-card/45 p-3.5 text-left transition-[background-color,border-color,transform] hover:-translate-y-px hover:border-brand/30 hover:bg-card/70"
-                      >
-                        <span className="grid size-8 shrink-0 place-items-center rounded-[8px] border border-border/60 bg-muted/40 text-muted-foreground transition-colors group-hover:border-brand/20 group-hover:bg-brand/10 group-hover:text-brand">
-                          <suggestion.icon className="size-4" />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-[13px] font-medium">
-                            {suggestion.title}
-                          </span>
-                          <span className="mt-0.5 line-clamp-2 block text-[11px] leading-relaxed text-muted-foreground">
-                            {suggestion.prompt}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-6 text-center text-[11px] text-muted-foreground/60">
-                    Tip: use <span className="font-mono">/</span> for commands and{" "}
-                    <span className="font-mono">!</span> to run a shell command.
+                <div className="animate-fade flex min-h-[calc(100dvh-16rem)] flex-col justify-center py-10">
+                  <DotMatrixEmblem />
+                  <p className="mt-3 text-center font-mono text-[11px] text-muted-foreground">
+                    [ idle ]
                   </p>
+                  <h2 className="headline mt-8 text-[28px] leading-tight">
+                    {emptyFolder ? `What should we build in ${emptyFolder}?` : "What should we build?"}
+                  </h2>
+                  <ul className="mt-4 space-y-1">
+                    {suggestions.map((suggestion) => (
+                      <li key={suggestion.title}>
+                        <button
+                          type="button"
+                          onClick={() => setDraft(suggestion.prompt)}
+                          className="inline-flex items-center gap-2 rounded-sm py-0.5 text-left text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                          title={suggestion.prompt}
+                        >
+                          <ArrowRight className="size-3 shrink-0" />
+                          {suggestion.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : (
-                <div className="space-y-7">
+                <div className="space-y-8">
                   {hiddenCount > 0 ? (
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       <Button variant="outline" size="sm" onClick={showEarlier}>
@@ -1967,15 +2066,22 @@ export function ChatView({
                       </div>
                     ))}
                   </ToolRootContext.Provider>
-                  {busy ? (
-                    <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-                      <span className="flex gap-1">
-                        <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.2s]" />
-                        <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.1s]" />
-                        <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50" />
-                      </span>
-                      <span className="truncate">{activity ?? `${harnessLabel} is working`}</span>
-                    </div>
+                  {pendingPermission ? (
+                    <InlinePermission
+                      key={pendingPermission.id}
+                      permission={pendingPermission}
+                      onRespond={respondPermission}
+                    />
+                  ) : null}
+                  {busy || pendingPermission ? (
+                    <ActivityBar
+                      active
+                      label={
+                        pendingPermission
+                          ? "Waiting for permission…"
+                          : (activity ?? `${harnessLabel} is working…`)
+                      }
+                    />
                   ) : null}
                   <div className="h-2" />
                 </div>
@@ -1988,7 +2094,7 @@ export function ChatView({
               <Button
                 variant="secondary"
                 size="sm"
-                className="pointer-events-auto gap-1.5 rounded-[10px] border-border/70"
+                className="pointer-events-auto gap-1.5 rounded-md"
                 onClick={() => {
                   const el = scrollRef.current;
                   if (!el) return;
@@ -2005,41 +2111,31 @@ export function ChatView({
         </div>
 
         {pendingContexts.length > 0 ? (
-          <div className="shrink-0 bg-muted/20 px-3 py-2 sm:px-5">
+          <div className="shrink-0 px-3 pt-2 sm:px-5">
             <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-2">
               {pendingContexts.map((item) => (
                 <span
                   key={item.id}
-                  className="inline-flex min-w-0 items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-[10px] text-success dark:text-success"
+                  className="inline-flex min-w-0 items-center gap-1.5 rounded-sm bg-secondary px-2 py-1 text-[11px]"
                 >
-                  <Check className="size-3 shrink-0" />
-                  <span className="font-mono text-[9px] font-medium uppercase tracking-[0.12em]">
-                    Context loaded
+                  <BookOpen className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="max-w-[220px] truncate" title={item.description || undefined}>
+                    Context: {item.description || "note"}
                   </span>
-                  {item.description ? (
-                    <span
-                      className="max-w-[220px] truncate text-foreground/80"
-                      title={item.description}
-                    >
-                      {item.description}
-                    </span>
-                  ) : null}
-                  <span className="font-mono text-muted-foreground/60">
+                  <span className="font-mono text-muted-foreground">
                     {item.text.length.toLocaleString("en-US")} chars
                   </span>
                   <button
                     type="button"
                     onClick={() => removePendingContext(item.id)}
                     aria-label="Remove queued context"
-                    className="rounded-full p-0.5 transition-colors hover:bg-success/20"
+                    className="rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
                   >
                     <X className="size-3" />
                   </button>
                 </span>
               ))}
-              <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground/50">
-                Sent with next message
-              </span>
+              <span className="text-[11px] text-muted-foreground">Sent with your next message</span>
             </div>
           </div>
         ) : null}
@@ -2064,7 +2160,8 @@ export function ChatView({
       </div>
 
       {showContextDesktop ? (
-        <aside className="hidden w-[320px] shrink-0 border-l border-border/60 bg-muted/15 xl:block">
+        <aside className="hidden w-[320px] shrink-0 py-3 pr-3 xl:block">
+          <div className="surface-panel h-full overflow-hidden">
           <ContextPanel
             tasks={tasks}
             diff={diff}
@@ -2090,12 +2187,31 @@ export function ChatView({
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
+          </div>
         </aside>
       ) : null}
 
       <Sheet open={contextOpen} onOpenChange={setContextOpen}>
-        <SheetContent side="right" className="w-[340px] p-0 sm:max-w-[360px]">
-          <SheetTitle className="sr-only">Session context</SheetTitle>
+        {/* Own header with a visible close button: the Sheet's default close
+            button sat on top of the panel's "More task actions" button. */}
+        <SheetContent
+          side="right"
+          className="w-[340px] gap-0 p-0 sm:max-w-[360px]"
+          showCloseButton={false}
+        >
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-border pl-3 pr-1.5">
+            <SheetTitle className="text-[13px] font-medium">Session context</SheetTitle>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              onClick={() => setContextOpen(false)}
+              aria-label="Close context panel"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">
           <ContextPanel
             tasks={tasks}
             diff={diff}
@@ -2121,6 +2237,7 @@ export function ChatView({
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
+          </div>
         </SheetContent>
       </Sheet>
 
@@ -2157,7 +2274,7 @@ export function ChatView({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-2 rounded-[10px] border border-border/60 bg-card/30 p-2.5">
+            <div className="space-y-2 rounded-md border border-border p-2.5">
               <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                 <MessageSquare className="size-3.5" />
                 Import another chat
@@ -2202,12 +2319,9 @@ export function ChatView({
                 </div>
               )}
               {importedContext ? (
-                <div className="space-y-2 rounded-[10px] border border-success/25 bg-success/5 p-2">
+                <div className="space-y-2 rounded-md bg-secondary p-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-success dark:text-success">
-                      <Check className="size-2.5" />
-                      Context loaded
-                    </span>
+                    <BookOpen className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate text-[11px] font-medium">
                       {importedContext.title}
                     </span>
@@ -2236,7 +2350,7 @@ export function ChatView({
                     </Button>
                   </div>
                   {contextPreviewOpen ? (
-                    <pre className="scrollbar-thin max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-[8px] border border-border/60 bg-background/60 p-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
+                    <pre className="scrollbar-thin max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-sm bg-background p-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
                       {importedContext.text}
                     </pre>
                   ) : null}

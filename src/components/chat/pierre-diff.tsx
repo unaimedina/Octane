@@ -3,6 +3,15 @@
 import * as React from "react";
 import { useTheme } from "next-themes";
 import { MultiFileDiff, PatchDiff, type FileContents } from "@pierre/diffs/react";
+import { cn } from "@/lib/utils";
+
+/**
+ * The syntax theme sets --diffs-{dark,light}-bg on :host inside
+ * `@layer rendered`, so values inherited from .octane-diff lose. An unlayered
+ * :host rule wins; var(--card) still resolves because custom properties
+ * inherit into the shadow root.
+ */
+const SURFACE_CSS = ":host { --diffs-dark-bg: var(--card); --diffs-light-bg: var(--card); }";
 
 export function PierreDiff({
   before,
@@ -29,18 +38,18 @@ export function PierreDiff({
       diffIndicators: "classic" as const,
       hunkSeparators: "line-info-basic" as const,
       expandUnchanged: false,
+      // Keep the add/remove backgrounds; their colors come from .octane-diff.
+      disableBackground: false,
+      unsafeCSS: SURFACE_CSS,
     }),
     [themeType],
   );
 
   if (patch) {
     return (
-      <PatchDiff
-        patch={patch}
-        options={options}
-        className={className}
-        disableWorkerPool
-      />
+      <div className={cn("octane-diff", className)}>
+        <PatchDiff patch={patch} options={options} disableWorkerPool />
+      </div>
     );
   }
 
@@ -58,12 +67,13 @@ export function PierreDiff({
   };
 
   return (
-    <MultiFileDiff
-      oldFile={oldFile}
-      newFile={newFile}
-      options={options}
-      className={className}
-      disableWorkerPool
-    />
+    <div className={cn("octane-diff", className)}>
+      <MultiFileDiff
+        oldFile={oldFile}
+        newFile={newFile}
+        options={options}
+        disableWorkerPool
+      />
+    </div>
   );
 }

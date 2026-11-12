@@ -5,28 +5,22 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChartColumn,
-  Check,
-  ChevronsUpDown,
-  FolderGit2,
+  ChevronUp,
+  Copy,
   FolderKanban,
   FolderTree,
   Loader2,
   LogIn,
   LogOut,
+  Menu,
   MessageSquare,
-  Monitor,
-  Moon,
   MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   Settings2,
-  ShieldAlert,
-  Sun,
   Trash2,
-  Wifi,
-  WifiOff,
   X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -34,6 +28,8 @@ import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
 import { Wordmark } from "@/components/brand";
 import { QuestionCenter } from "@/components/question-center";
+import { TopBarSlotProvider, TopBarSlotTarget } from "@/components/top-bar-slot";
+import { useConnection } from "@/components/use-connection";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,39 +54,33 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
-import { readCsrfCookie } from "@/lib/api";
+import { ApiError, apiJson, readCsrfCookie } from "@/lib/api";
+import type { ConnectionState } from "@/lib/connection-state";
 import { CSRF_HEADER } from "@/lib/constants";
-import type { Session } from "@/lib/types";
+import { normalizeProjectDirectory } from "@/lib/project-paths";
+import type { Project, Session } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/chat", label: "Chats", icon: MessageSquare },
+  { href: "/chat", label: "Sessions", icon: MessageSquare },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/usage", label: "Usage", icon: ChartColumn },
   { href: "/files", label: "Files", icon: FolderTree },
-  { href: "/settings", label: "Settings", icon: Settings2 },
+  { href: "/usage", label: "Usage", icon: ChartColumn },
 ] as const;
 
-function dateBucket(timestamp: number): string {
-  const now = new Date();
-  const date = new Date(timestamp);
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startYesterday = startToday - 86_400_000;
-  if (timestamp >= startToday) return "Today";
-  if (timestamp >= startYesterday) return "Yesterday";
-  if (timestamp >= startToday - 7 * 86_400_000) return "Previous 7 days";
-  if (date.getFullYear() === now.getFullYear()) {
-    return date.toLocaleDateString("en-US", { month: "long" });
-  }
-  return String(date.getFullYear());
-}
+/** Sessions shown per sidebar group before "Show n more". */
+const GROUP_PREVIEW = 8;
+const OTHER_GROUP = "__other__";
 
 function timeAgo(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -107,87 +97,206 @@ function timeAgo(timestamp: number): string {
   });
 }
 
-function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+function basename(path: string | undefined | null): string | undefined {
+  return path?.split(/[\\/]/).filter(Boolean).pop();
+}
 
+// ---------- Connection status ----------
+
+const connectionSquare: Record<ConnectionState["kind"], string> = {
+  connected: "bg-success",
+  reconnecting: "bg-warning",
+  disconnected: "bg-destructive",
+};
+
+function connectionLabel(state: ConnectionState): string {
+  if (state.kind === "connected") return "Connected";
+  if (state.kind === "reconnecting") return "Reconnecting…";
+  return state.reason === "unauthorized"
+    ? "OpenCode rejected the server credentials"
+    : "Disconnected";
+}
+
+function disconnectReason(state: ConnectionState): string | null {
+  if (state.kind !== "disconnected") return null;
+  switch (state.reason) {
+    case "unauthorized":
+      return "OpenCode rejected the server credentials";
+    case "stream":
+      return "Live stream closed";
+    case "upstream":
+    case "probe":
+      return "OpenCode is not responding";
+  }
+}
+
+function ConnectionStatus({
+  state,
+  harnessLabel,
+}: {
+  state: ConnectionState;
+  harnessLabel: string;
+}) {
+  const reason = disconnectReason(state);
+  const version = state.kind === "connected" ? state.version : null;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Change theme">
-          <Sun className="size-4 dark:hidden" />
-          <Moon className="hidden size-4 dark:block" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-36">
-        <DropdownMenuLabel>Appearance</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => setTheme("light")}>
-          <Sun className="size-4" /> Light
-          {theme === "light" ? <Check className="ml-auto size-3.5" /> : null}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setTheme("dark")}>
-          <Moon className="size-4" /> Dark
-          {theme === "dark" ? <Check className="ml-auto size-3.5" /> : null}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setTheme("system")}>
-          <Monitor className="size-4" /> System
-          {theme === "system" ? <Check className="ml-auto size-3.5" /> : null}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex h-8 items-center gap-2 rounded-sm px-1.5 outline-none" tabIndex={0}>
+          <span className={cn("status-square", connectionSquare[state.kind])} aria-hidden="true" />
+          <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
+            <span role="status" aria-live="polite">
+              {state.kind === "disconnected" ? "Disconnected" : connectionLabel(state)}
+            </span>
+            {state.kind === "connected" ? (
+              <span aria-hidden="true"> · {state.latencyMs} ms</span>
+            ) : null}
+          </span>
+          <span className="sr-only sm:hidden">{connectionLabel(state)}</span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" align="end">
+        <span className="flex flex-col gap-0.5">
+          <span>{version ? `${harnessLabel} ${version}` : harnessLabel}</span>
+          {reason ? <span className="text-muted-foreground">{reason}</span> : null}
+        </span>
+      </TooltipContent>
+    </Tooltip>
   );
 }
+
+// ---------- Shared actions ----------
+
+function useNewSession(onDone?: () => void) {
+  const { createSession, refreshSessions } = useAppData();
+  const router = useRouter();
+  const [creating, setCreating] = React.useState(false);
+
+  const create = React.useCallback(async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const session = await createSession();
+      onDone?.();
+      router.push(`/chat/${session.id}`);
+    } catch (error) {
+      toast.error("Could not create session", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setCreating(false);
+    }
+  }, [createSession, creating, onDone, router]);
+
+  const createInProject = React.useCallback(
+    async (project: Project) => {
+      if (creating) return;
+      setCreating(true);
+      try {
+        const session = await apiJson<Session>(`/projects/${project.id}/sessions`, {
+          method: "POST",
+        });
+        await refreshSessions();
+        onDone?.();
+        router.push(`/chat/${session.id}`);
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "projects_require_v2") {
+          toast.error("Project sessions need the OpenCode v2 API");
+          setCreating(false);
+          await create();
+          return;
+        }
+        toast.error("Could not create a project session", {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      } finally {
+        setCreating(false);
+      }
+    },
+    [create, creating, onDone, refreshSessions, router],
+  );
+
+  return { create, createInProject, creating };
+}
+
+async function signOut() {
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: { [CSRF_HEADER]: readCsrfCookie() ?? "" },
+    });
+  } finally {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign("/login");
+  }
+}
+
+// ⌘K on Apple platforms, Ctrl K elsewhere. Server render uses "Ctrl K".
+function subscribeNothing() {
+  return () => undefined;
+}
+function useSearchShortcutLabel(): string {
+  return React.useSyncExternalStore(
+    subscribeNothing,
+    () => (/Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent) ? "⌘K" : "Ctrl K"),
+    () => "Ctrl K",
+  );
+}
+
+// ---------- Sidebar ----------
 
 function SessionRow({
   session,
   active,
   busy,
+  needsInput,
+  harnessLabel,
+  onNavigate,
   onRename,
   onDelete,
 }: {
   session: Session;
   active: boolean;
   busy: boolean;
+  needsInput: boolean;
+  harnessLabel: string;
+  onNavigate?: () => void;
   onRename: (session: Session) => void;
   onDelete: (session: Session) => void;
 }) {
+  const meta = needsInput ? "needs input" : busy ? "working" : timeAgo(session.time.updated);
   return (
     <div
       className={cn(
-        "group/session relative flex w-full min-w-0 items-center gap-1 rounded-[10px] pr-1 transition-colors",
-        active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "hover:bg-muted/50",
+        "group/session relative flex w-full min-w-0 items-center gap-1 rounded-md pr-1 transition-colors",
+        active ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60",
       )}
     >
       <Link
         href={`/chat/${session.id}`}
         prefetch={false}
+        onClick={onNavigate}
         title={session.directory || session.title}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[10px] px-2.5 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-md px-2.5 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full transition-colors",
-            busy
-              ? "bg-success pulse-dot"
-              : active
-                ? "bg-brand"
-                : "bg-muted-foreground/30",
-          )}
-        />
-        <span
-          className={cn(
-            "min-w-0 flex-1 truncate text-[13px]",
-            active ? "font-medium text-sidebar-foreground" : "text-sidebar-foreground/80",
-          )}
-        >
-          {session.title || "Untitled session"}
+        <span className="flex min-w-0 items-center gap-2">
+          {busy || needsInput ? (
+            <span className="status-square bg-brand" aria-hidden="true" />
+          ) : null}
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-[13px]",
+              active ? "text-foreground" : "text-foreground/80",
+            )}
+          >
+            {session.title || "Untitled session"}
+          </span>
         </span>
         <span
-          className="shrink-0 font-mono text-[10px] tabular-nums text-muted-foreground/60"
+          className="truncate font-mono text-[11px] text-muted-foreground"
           suppressHydrationWarning
         >
-          {busy ? "live" : timeAgo(session.time.updated)}
+          {harnessLabel} · {meta}
         </span>
       </Link>
       <DropdownMenu>
@@ -212,7 +321,7 @@ function SessionRow({
                 .then(() => toast.success("Session ID copied"));
             }}
           >
-            <ShieldAlert className="size-4" /> Copy session ID
+            <Copy className="size-4" /> Copy session ID
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onSelect={() => onDelete(session)}>
@@ -224,30 +333,158 @@ function SessionRow({
   );
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+type SessionGroup = {
+  key: string;
+  project: Project | null;
+  name: string;
+  sessions: Session[];
+};
+
+/**
+ * Group sessions by project, matching like `projectSessions()` in
+ * `src/lib/project-paths.ts`. Groups are ordered by their most recent session;
+ * sessions outside every project go to a final group.
+ */
+function groupSessions(sessions: Session[], projects: Project[], otherName: string): SessionGroup[] {
+  const byDirectory = new Map<string, Project>();
+  for (const project of projects) {
+    byDirectory.set(normalizeProjectDirectory(project.directory).toLowerCase(), project);
+  }
+  const groups = new Map<string, SessionGroup>();
+  const other: SessionGroup = { key: OTHER_GROUP, project: null, name: otherName, sessions: [] };
+  // `sessions` is sorted newest first, so insertion order is recency order.
+  for (const session of sessions) {
+    const project = session.directory
+      ? byDirectory.get(normalizeProjectDirectory(session.directory).toLowerCase())
+      : undefined;
+    if (!project) {
+      other.sessions.push(session);
+      continue;
+    }
+    let group = groups.get(project.id);
+    if (!group) {
+      group = { key: project.id, project, name: project.name, sessions: [] };
+      groups.set(project.id, group);
+    }
+    group.sessions.push(session);
+  }
+  const ordered = [...groups.values()];
+  if (other.sessions.length) ordered.push(other);
+  return ordered;
+}
+
+function UserMenu({
+  connection,
+  onNavigate,
+}: {
+  connection: ConnectionState;
+  onNavigate?: () => void;
+}) {
+  const { username, harnessLabel } = useAppData();
+  const { theme, setTheme } = useTheme();
+  const version = connection.kind === "connected" ? connection.version : null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex w-full items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-sidebar-accent">
+          <span className="grid size-7 shrink-0 place-items-center rounded-sm bg-secondary text-[12px] font-medium text-foreground">
+            {username.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[13px]">{username}</span>
+          <ChevronUp className="size-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="w-60">
+        <DropdownMenuLabel className="font-normal">
+          <div className="text-xs text-muted-foreground">Signed in as {username}</div>
+          <div className="mt-1.5 flex items-center gap-2 text-xs text-foreground">
+            <span className={cn("status-square", connectionSquare[connection.kind])} aria-hidden="true" />
+            <span className="min-w-0 truncate">
+              {connectionLabel(connection)}
+              {connection.kind === "connected" ? ` · ${connection.latencyMs} ms` : ""}
+            </span>
+          </div>
+          {version ? (
+            <div className="mt-1 font-mono text-[11px] text-muted-foreground">
+              {harnessLabel} {version}
+            </div>
+          ) : null}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/settings#opencode-account" onClick={onNavigate}>
+            <LogIn className="size-4" /> OpenCode account
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/settings" onClick={onNavigate}>
+            <Settings2 className="size-4" /> Settings
+          </Link>
+        </DropdownMenuItem>
+        <div className="flex items-center gap-2 px-1.5 py-1">
+          <span className="text-sm">Theme</span>
+          <DropdownMenuRadioGroup
+            value={theme ?? "system"}
+            onValueChange={setTheme}
+            className="ml-auto flex rounded-md bg-muted p-0.5"
+            aria-label="Theme"
+          >
+            {(["light", "dark", "system"] as const).map((value) => (
+              <DropdownMenuRadioItem
+                key={value}
+                value={value}
+                onSelect={(event) => event.preventDefault()}
+                className="h-6 flex-1 justify-center rounded-sm px-2 text-[11px] capitalize text-muted-foreground data-[state=checked]:bg-secondary data-[state=checked]:text-foreground [&>[data-slot=dropdown-menu-radio-item-indicator]]:hidden"
+              >
+                {value}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => void signOut()} variant="destructive">
+          <LogOut className="size-4" /> Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function SidebarContent({
+  connection,
+  onNavigate,
+}: {
+  connection: ConnectionState;
+  onNavigate?: () => void;
+}) {
   const {
     sessions,
+    projects,
     statuses,
-    health,
     pathInfo,
-    username,
     harnessLabel,
-    connected,
-    createSession,
+    pendingPermissions,
+    pendingQuestions,
     deleteSession,
     renameSession,
     refreshSessions,
   } = useAppData();
   const pathname = usePathname();
-  const router = useRouter();
   const searchRef = React.useRef<HTMLInputElement>(null);
   const [query, setQuery] = React.useState("");
-  const [creating, setCreating] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [expanded, setExpanded] = React.useState<Set<string>>(() => new Set());
   const [renameTarget, setRenameTarget] = React.useState<Session | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<Session | null>(null);
   const [titleDraft, setTitleDraft] = React.useState("");
+  const { create, createInProject, creating } = useNewSession(onNavigate);
   const newSessionRef = React.useRef<() => void>(() => undefined);
+  const shortcutLabel = useSearchShortcutLabel();
+
+  React.useEffect(() => {
+    newSessionRef.current = () => void create();
+  }, [create]);
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -277,6 +514,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const searching = query.trim().length > 0;
+
   const filtered = React.useMemo(() => {
     const term = query.trim().toLowerCase();
     if (!term) return sessions;
@@ -287,84 +526,62 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     );
   }, [query, sessions]);
 
-  const grouped = React.useMemo(() => {
-    const groups = new Map<string, Session[]>();
-    for (const session of filtered) {
-      const bucket = dateBucket(session.time.updated);
-      const items = groups.get(bucket) ?? [];
-      items.push(session);
-      groups.set(bucket, items);
-    }
-    return [...groups.entries()];
-  }, [filtered]);
+  const groups = React.useMemo(
+    () => groupSessions(filtered, projects, basename(pathInfo?.directory) ?? "Workspace"),
+    [filtered, projects, pathInfo?.directory],
+  );
 
-  async function handleNewSession() {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const session = await createSession();
-      onNavigate?.();
-      router.push(`/chat/${session.id}`);
-    } catch (error) {
-      toast.error("Could not create session", {
-        description: error instanceof Error ? error.message : undefined,
-      });
-    } finally {
-      setCreating(false);
-    }
+  const needsInput = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const permission of pendingPermissions) ids.add(permission.sessionID);
+    for (const question of pendingQuestions) ids.add(question.sessionID);
+    return ids;
+  }, [pendingPermissions, pendingQuestions]);
+
+  function toggleGroup(key: string) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
-
-  React.useEffect(() => {
-    newSessionRef.current = () => void handleNewSession();
-  });
-
-  async function handleSignOut() {
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        headers: { [CSRF_HEADER]: readCsrfCookie() ?? "" },
-      });
-    } finally {
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      window.location.assign("/login");
-    }
-  }
-
-  const directory = pathInfo?.directory?.split(/[\\/]/).filter(Boolean).pop();
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-sidebar/85 text-sidebar-foreground">
-      <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border/70 px-3">
-        <Link href="/chat" onClick={onNavigate} className="rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <div className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 px-3">
+        <Link
+          href="/chat"
+          onClick={onNavigate}
+          className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <Wordmark />
         </Link>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void create()}
+              disabled={creating}
+              aria-label="New session"
+            >
+              {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">New session · N</TooltipContent>
+        </Tooltip>
       </div>
 
-      <div className="space-y-3 px-3 pb-3">
-        <Button
-          onClick={handleNewSession}
-          disabled={creating}
-          className="h-9 w-full justify-start gap-2"
-        >
-          {creating ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Plus className="size-4" />
-          )}
-          New session
-          <span className="ml-auto rounded border border-primary-foreground/20 px-1 font-mono text-[9px] opacity-60">
-            N
-          </span>
-        </Button>
-
-        <div className="relative">
+      <div className="flex items-center gap-1 px-3 pb-3">
+        <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             ref={searchRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search sessions"
-            className="h-8 border-border/60 bg-card/40 pl-8 pr-10 text-[13px] shadow-none focus-visible:border-brand/40 focus-visible:bg-white/[0.05]"
+            className="h-8 rounded-md border-input bg-muted pl-8 pr-12 text-[13px] shadow-none"
           />
           {query ? (
             <button
@@ -376,52 +593,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               <X className="size-3.5" />
             </button>
           ) : (
-            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[8px] uppercase tracking-wider text-muted-foreground/50">
-              Ctrl K
+            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[10px] text-muted-foreground">
+              {shortcutLabel}
             </kbd>
           )}
         </div>
-      </div>
-
-      <nav className="space-y-0.5 px-2 pb-2">
-        {navItems.map((item) => {
-          const active =
-            item.href === "/chat"
-              ? pathname === "/chat" || pathname?.startsWith("/chat/")
-              : pathname?.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                "relative flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[13px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] [&_svg]:text-brand"
-                  : "text-sidebar-foreground/65 hover:bg-muted/50 hover:text-sidebar-foreground",
-              )}
-            >
-              {active ? (
-                <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-brand" />
-              ) : null}
-              <item.icon className="size-4" />
-              {item.label}
-              {item.href === "/chat" ? (
-                <span className="ml-auto font-mono text-[10px] text-muted-foreground/60">
-                  {sessions.length}
-                </span>
-              ) : null}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="mx-3 border-t border-sidebar-border/70" />
-
-      <div className="flex items-center justify-between px-4 pb-1.5 pt-3">
-        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/70">
-          Sessions
-        </span>
         <Button
           variant="ghost"
           size="icon-xs"
@@ -438,106 +614,113 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </Button>
       </div>
 
+      <nav className="space-y-0.5 px-2 pb-2" aria-label="Main">
+        {navItems.map((item) => {
+          const active =
+            item.href === "/chat"
+              ? pathname === "/chat" || pathname?.startsWith("/chat/")
+              : pathname?.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring [&_svg]:text-muted-foreground",
+                active
+                  ? "bg-sidebar-accent text-foreground"
+                  : "text-foreground/75 hover:bg-sidebar-accent/60 hover:text-foreground",
+              )}
+            >
+              <item.icon className="size-4" strokeWidth={1.5} />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mx-3 border-t border-border" />
+
       <ScrollArea className="sidebar-scroll min-h-0 w-full flex-1">
-        <div className="w-full min-w-0 space-y-4 px-2 pb-4">
-          {grouped.length === 0 ? (
-            <div className="mx-2 mt-2 rounded-lg border border-dashed border-sidebar-border px-3 py-6 text-center text-xs text-muted-foreground">
-              {query ? "No sessions match your search." : "No sessions yet. Start a new one."}
-            </div>
+        <div className="w-full min-w-0 space-y-2 px-2 pb-4">
+          {groups.length === 0 ? (
+            <p className="px-2.5 pt-3 text-xs text-muted-foreground">
+              {searching ? "No sessions match your search." : "No sessions yet. Start a new one."}
+            </p>
           ) : (
-            grouped.map(([bucket, items]) => (
-              <div key={bucket} className="min-w-0 space-y-0.5">
-                <div className="px-2.5 pb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground/55">
-                  {bucket}
-                </div>
-                {items.map((session) => (
-                  <SessionRow
-                    key={session.id}
-                    session={session}
-                    active={pathname === `/chat/${session.id}`}
-                    busy={
-                      statuses[session.id]?.type === "busy" ||
-                      statuses[session.id]?.type === "retry"
-                    }
-                    onRename={(target) => {
-                      setRenameTarget(target);
-                      setTitleDraft(target.title);
-                    }}
-                    onDelete={setDeleteTarget}
-                  />
-                ))}
-              </div>
-            ))
+            groups.map((group) => {
+              const open = searching || expanded.has(group.key);
+              const visible = open ? group.sessions : group.sessions.slice(0, GROUP_PREVIEW);
+              const hidden = group.sessions.length - visible.length;
+              return (
+                <section key={group.key} className="min-w-0" aria-label={group.name}>
+                  <div className="flex items-center gap-1 px-2.5 pb-1 pt-3">
+                    {group.project ? (
+                      <Link
+                        href={`/projects/${group.project.id}`}
+                        onClick={onNavigate}
+                        className="min-w-0 flex-1 truncate rounded-sm text-[12px] font-medium text-foreground/90 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {group.name}
+                      </Link>
+                    ) : (
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground/90">
+                        {group.name}
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground"
+                      disabled={creating}
+                      onClick={() =>
+                        void (group.project ? createInProject(group.project) : create())
+                      }
+                      aria-label={`New session in ${group.name}`}
+                    >
+                      <Plus className="size-3" />
+                    </Button>
+                  </div>
+                  <div className="space-y-0.5">
+                    {visible.map((session) => (
+                      <SessionRow
+                        key={session.id}
+                        session={session}
+                        active={pathname === `/chat/${session.id}`}
+                        busy={
+                          statuses[session.id]?.type === "busy" ||
+                          statuses[session.id]?.type === "retry"
+                        }
+                        needsInput={needsInput.has(session.id)}
+                        harnessLabel={harnessLabel}
+                        onNavigate={onNavigate}
+                        onRename={(target) => {
+                          setRenameTarget(target);
+                          setTitleDraft(target.title);
+                        }}
+                        onDelete={setDeleteTarget}
+                      />
+                    ))}
+                  </div>
+                  {!searching && (hidden > 0 || open) && group.sessions.length > GROUP_PREVIEW ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.key)}
+                      className="mt-0.5 rounded-sm px-2.5 py-1 text-[12px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {hidden > 0 ? `Show ${hidden} more` : "Show less"}
+                    </button>
+                  ) : null}
+                </section>
+              );
+            })
           )}
         </div>
       </ScrollArea>
 
-      <div className="shrink-0 border-t border-sidebar-border/70 p-2.5">
-        <div className="glass-inset mb-2 flex items-center gap-2 rounded-[10px] px-2.5 py-2">
-          <div className="grid size-7 shrink-0 place-items-center rounded-[8px] bg-muted text-muted-foreground">
-            <FolderGit2 className="size-3.5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-medium">
-              {directory ?? "Workspace"}
-            </div>
-            <div className="truncate font-mono text-[10px] text-muted-foreground/70">
-              {health?.version
-                ? `${harnessLabel.toLowerCase()} ${health.version}`
-                : "server offline"}
-            </div>
-          </div>
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              connected ? "bg-success" : "bg-warning",
-            )}
-            title={connected ? "Connected" : "Reconnecting"}
-          />
-        </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-2 rounded-[10px] px-1.5 py-1.5 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring">
-              <div className="grid size-7 shrink-0 place-items-center rounded-[8px] bg-brand text-[11px] font-semibold text-brand-foreground">
-                {username.slice(0, 1).toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-medium">{username}</div>
-                <div className="text-[10px] text-muted-foreground">Signed in</div>
-              </div>
-              <ChevronsUpDown className="size-3.5 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="top" className="w-52">
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex items-center gap-2">
-                {connected ? (
-                  <Wifi className="size-3.5 text-success" />
-                ) : (
-                  <WifiOff className="size-3.5 text-warning" />
-                )}
-                <span className="text-xs">
-                  {connected ? "Live connection" : "Reconnecting…"}
-                </span>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings#opencode-account">
-                <LogIn className="size-4" /> OpenCode account
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings">
-                <Settings2 className="size-4" /> Server settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleSignOut} variant="destructive">
-              <LogOut className="size-4" /> Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="shrink-0 border-t border-border p-2">
+        <UserMenu connection={connection} onNavigate={onNavigate} />
       </div>
 
       <Dialog
@@ -641,8 +824,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 function PermissionCenter() {
   const { pendingPermissions, respondPermission } = useAppData();
+  const pathname = usePathname();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const permission = pendingPermissions[0];
+  // The open session answers its own permissions inline (chat-view); the modal
+  // is only for requests from other sessions.
+  const openId = pathname?.startsWith("/chat/") ? pathname.split("/")[2] : undefined;
+  const permission = pendingPermissions.find((item) => item.sessionID !== openId);
   if (!permission) return null;
 
   async function respond(response: "once" | "always" | "reject") {
@@ -737,18 +924,32 @@ function PermissionCenter() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <TopBarSlotProvider>
+      <AppShellFrame>{children}</AppShellFrame>
+    </TopBarSlotProvider>
+  );
+}
+
+function AppShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { sessions, health, connected, username, harnessLabel, pendingPermissions } =
-    useAppData();
+  const router = useRouter();
+  const { sessions, harnessLabel, pendingPermissions } = useAppData();
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  // One probe loop for the whole app: the top bar and the user menu share it.
+  const connection = useConnection();
+  const { create, creating } = useNewSession();
+  const closeMobile = React.useCallback(() => setMobileOpen(false), []);
+
+  const inChat = pathname === "/chat" || Boolean(pathname?.startsWith("/chat/"));
 
   const title = React.useMemo(() => {
     if (pathname === "/chat") return "New session";
     if (pathname?.startsWith("/chat/")) {
       const id = pathname.split("/")[2];
-      return sessions.find((session) => session.id === id)?.title ?? "Session";
+      return sessions.find((session) => session.id === id)?.title || "Session";
     }
-    if (pathname?.startsWith("/files")) return "Project files";
+    if (pathname?.startsWith("/files")) return "Files";
     if (pathname?.startsWith("/projects/")) return "Project";
     if (pathname?.startsWith("/projects")) return "Projects";
     if (pathname?.startsWith("/usage")) return "Usage";
@@ -757,20 +958,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname, sessions]);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-transparent">
-      <aside className="hidden w-[320px] shrink-0 border-r border-sidebar-border lg:block">
-        <SidebarContent />
+    <div className="flex h-dvh w-full overflow-hidden bg-background">
+      <aside className="hidden w-[260px] shrink-0 lg:block">
+        <SidebarContent connection={connection} />
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-[340px] p-0" showCloseButton={false}>
+        <SheetContent
+          side="left"
+          className="w-[300px] max-w-[85vw] p-0"
+          showCloseButton={false}
+          // Focus the panel itself: auto-focusing the first button would pop its tooltip.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement | null)?.focus();
+          }}
+        >
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <SidebarContent onNavigate={() => setMobileOpen(false)} />
+          <SidebarContent connection={connection} onNavigate={closeMobile} />
         </SheetContent>
       </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="glass-bar flex h-12 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
+        <header className="flex h-12 shrink-0 items-center gap-2 bg-background px-3 sm:px-4">
           <Button
             variant="ghost"
             size="icon-sm"
@@ -778,71 +988,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileOpen(true)}
             aria-label="Open navigation"
           >
-            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <Menu className="size-4" />
           </Button>
 
-          <div className="flex min-w-0 items-center gap-2 text-sm">
-            <span className="hidden text-muted-foreground sm:inline">Workspace</span>
-            <span className="hidden text-muted-foreground/40 sm:inline">/</span>
-            <span className="truncate font-medium">{title}</span>
-          </div>
-
-          <div className="ml-auto flex items-center gap-1">
-            <div
-              className={cn(
-                "mr-1 hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium sm:flex",
-                connected
-                  ? "border-success/20 bg-success/8 text-success dark:text-success"
-                  : "border-warning/20 bg-warning/8 text-warning dark:text-warning",
-              )}
-              title={health?.version ? `${harnessLabel} ${health.version}` : undefined}
-            >
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  connected ? "bg-success" : "bg-warning pulse-dot",
-                )}
-              />
-              {connected ? "Live" : "Reconnecting"}
+          {inChat ? (
+            <div className="flex min-w-0 items-center gap-1">
+              <div className="flex h-8 min-w-0 max-w-[min(420px,50vw)] items-center gap-1 rounded-md border border-border bg-card pl-3 pr-1 text-[13px]">
+                <span className="min-w-0 truncate pr-1">{title}</span>
+                {pathname !== "/chat" ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="text-muted-foreground"
+                    onClick={() => router.push("/chat")}
+                    aria-label="Close session"
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                ) : null}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
+                onClick={() => void create()}
+                disabled={creating}
+                aria-label="New session"
+              >
+                {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+              </Button>
             </div>
-            <ThemeToggle />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Account">
-                  <div className="grid size-6 place-items-center rounded-[8px] bg-brand text-[10px] font-semibold text-brand-foreground">
-                    {username.slice(0, 1).toUpperCase()}
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>
-                  <div className="text-xs font-medium">{username}</div>
-                  <div className="mt-0.5 text-[10px] font-normal text-muted-foreground">
-                    {health?.version ? `${harnessLabel} ${health.version}` : "OCTANE"}
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/settings">
-                    <Settings2 className="size-4" /> Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  variant="destructive"
-                  onSelect={() => {
-                    void fetch("/api/auth/logout", {
-                      method: "POST",
-                      headers: { [CSRF_HEADER]: readCsrfCookie() ?? "" },
-                      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-                    }).finally(() => window.location.assign("/login"));
-                  }}
-                >
-                  <LogOut className="size-4" /> Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          ) : (
+            <h1 className="min-w-0 truncate text-[13px] font-medium">{title}</h1>
+          )}
+
+          <div className="ml-auto flex min-w-0 items-center gap-1">
+            <TopBarSlotTarget className="flex min-w-0 items-center gap-1 empty:hidden" />
+            <ConnectionStatus state={connection} harnessLabel={harnessLabel} />
           </div>
         </header>
 

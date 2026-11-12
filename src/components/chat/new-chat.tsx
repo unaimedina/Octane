@@ -3,20 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowRight,
-  Bug,
-  FlaskConical,
-  FolderGit2,
-  GitPullRequest,
-  Loader2,
-  Plus,
-  Sparkles,
-  Terminal,
-} from "lucide-react";
+import { ArrowRight, ArrowUp, FolderGit2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
-import { BrandMark } from "@/components/brand";
+import { DotMatrixEmblem } from "@/components/chat/dot-matrix-emblem";
 import { FolderPicker } from "@/components/chat/folder-picker";
 import { UsageCard } from "@/components/usage/usage-card";
 import {
@@ -27,29 +17,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { resolveAgainst } from "@/lib/folder-paths";
 import { isAbsoluteProjectDirectory } from "@/lib/project-paths";
-import { cn } from "@/lib/utils";
 
 const suggestions = [
   {
-    icon: Sparkles,
     title: "Explore the codebase",
     prompt:
       "Give me a tour of this codebase. What does it do, how is it structured, and where should I start?",
   },
   {
-    icon: Bug,
     title: "Find and fix a bug",
     prompt:
       "Look for the most likely bug in the current uncommitted changes, explain it, and fix it.",
   },
   {
-    icon: FlaskConical,
     title: "Write tests",
     prompt:
       "Identify the most important untested behavior in this project and write focused tests for it.",
   },
   {
-    icon: GitPullRequest,
     title: "Review changes",
     prompt:
       "Review the uncommitted changes like a senior engineer. Point out correctness, security and performance issues.",
@@ -72,6 +57,7 @@ export function NewChat() {
     React.useState<ModelSelection | null>(defaultModel);
   const [rootFolder, setRootFolder] = React.useState("");
   const [folderOpen, setFolderOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
 
   React.useEffect(() => {
     queueMicrotask(() => {
@@ -133,17 +119,17 @@ export function NewChat() {
     }
   }
 
-  async function start(prompt?: string) {
+  async function start(prompt?: string, options?: { send?: boolean }) {
     if (creating) return;
     setCreating(prompt ?? "blank");
     try {
       const session = await createSession({
         directory: rootFolder.trim() || undefined,
       });
-      const target = prompt
-        ? `/chat/${session.id}?prompt=${encodeURIComponent(prompt)}`
-        : `/chat/${session.id}`;
-      router.push(target);
+      const query = prompt
+        ? `?prompt=${encodeURIComponent(prompt)}${options?.send ? "&send=1" : ""}`
+        : "";
+      router.push(`/chat/${session.id}${query}`);
     } catch (error) {
       toast.error("Could not create a session", {
         description: error instanceof Error ? error.message : undefined,
@@ -152,68 +138,89 @@ export function NewChat() {
     }
   }
 
+  function submitDraft() {
+    const text = draft.trim();
+    if (text) void start(text, { send: true });
+    else void start();
+  }
+
   const recent = sessions.slice(0, 5);
+  const workingFolder = rootFolder || pathInfo?.directory || "";
+  const folderName = workingFolder.split(/[\\/]/).filter(Boolean).pop();
+  const caption = health?.healthy
+    ? `[ idle · ${harnessLabel} ${health.version} ]`
+    : "[ offline ]";
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
-      <div className="relative mx-auto flex min-h-full w-full max-w-4xl flex-col justify-center px-5 py-12">
+      <div className="relative mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-5 py-12">
         <div className="animate-in-up">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/35 px-3 py-1 text-[11px] text-muted-foreground">
-            <span
-              className={cn(
-                "size-1.5 rounded-full",
-                health?.healthy ? "bg-success" : "bg-warning",
-              )}
-            />
-            {health?.healthy
-              ? `${harnessLabel} ${health.version} ready`
-              : `${harnessLabel} offline`}
-            <span className="text-muted-foreground/40">·</span>
-            <span className="font-mono text-[10px]">
-              {pathInfo?.directory ?? "workspace"}
-            </span>
+          <DotMatrixEmblem />
+          <p className="mt-3 text-center font-mono text-[11px] text-muted-foreground">{caption}</p>
+
+          <h1 className="headline mt-10 text-[28px] leading-tight">
+            {folderName ? `What should we build in ${folderName}?` : "What should we build?"}
+          </h1>
+
+          <div className="mt-4 flex min-w-0 items-center gap-1 text-[12px] text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="min-w-0 gap-1.5 px-1.5 text-[12px] text-muted-foreground"
+              onClick={() => setFolderOpen(true)}
+              disabled={Boolean(creating)}
+              title={workingFolder || "Server default folder"}
+              aria-label="Change working folder"
+            >
+              <FolderGit2 className="size-3.5 shrink-0" />
+              <span className="truncate font-mono">{workingFolder || "server default"}</span>
+            </Button>
+            {rootFolder ? (
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-muted-foreground"
+                onClick={() => changeRootFolder("")}
+                disabled={Boolean(creating)}
+              >
+                Reset
+              </Button>
+            ) : null}
           </div>
 
-          <div className="mb-8 flex items-start gap-4">
-            <BrandMark className="mt-1 size-12 rounded-2xl" />
-            <div>
-              <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
-                Start a new session.
-              </h1>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                Describe what you want to build, debug or understand. {harnessLabel} can
-                read files, run commands and edit your project.
-              </p>
+          <div className="relative mt-2 rounded-lg border border-input bg-card transition-colors focus-within:border-brand/50">
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  submitDraft();
+                }
+              }}
+              rows={2}
+              placeholder="Ask anything…  @ files · / commands · ! shell"
+              disabled={Boolean(creating)}
+              className="scrollbar-thin block max-h-[220px] min-h-[76px] w-full resize-none bg-transparent px-4 pb-12 pt-3.5 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground"
+              aria-label="First message"
+              autoFocus
+            />
+            <div className="absolute bottom-2.5 right-2.5">
+              <Button
+                size="icon-sm"
+                onClick={submitDraft}
+                disabled={Boolean(creating)}
+                aria-label={draft.trim() ? "Start session and send" : "Start a blank session"}
+              >
+                {creating === "blank" || (creating && creating === draft.trim()) ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ArrowUp className="size-4" />
+                )}
+              </Button>
             </div>
           </div>
-
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <Button
-              onClick={() => void start()}
-              disabled={Boolean(creating)}
-              className="h-10 gap-2 px-4"
-            >
-              {creating === "blank" ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Plus className="size-4" />
-              )}
-              Start blank session
-              <ArrowRight className="size-3.5 opacity-60" />
-            </Button>
-            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-              <Terminal className="size-3.5" />
-              or press <kbd className="rounded border border-border px-1 font-mono text-[10px]">N</kbd>
-            </span>
-          </div>
-
-          <div className="mb-2 flex flex-wrap items-center gap-2 rounded-[10px] border border-border/60 bg-card/30 px-3 py-2">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              Default model
-            </span>
-            <span className="hidden text-[10px] text-muted-foreground/50 sm:inline">
-              used for new conversations
-            </span>
+          <div className="mt-2 flex items-center justify-end">
             <ModelPicker
               models={models}
               value={selectedModel}
@@ -221,91 +228,46 @@ export function NewChat() {
               allowDefault
               side="bottom"
               label="Default model for new conversations"
-              className="ml-auto border border-border/60 bg-background/50"
             />
           </div>
 
-          <div className="mb-5 flex flex-wrap items-center gap-2 rounded-[10px] border border-border/60 bg-card/30 px-3 py-2">
-            <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-              <FolderGit2 className="size-3.5" />
-              Root folder
-            </span>
-            <span
-              className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted-foreground/60"
-              title={rootFolder || pathInfo?.directory}
-            >
-              {rootFolder || pathInfo?.directory || "server default"}
-            </span>
-            {rootFolder ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => changeRootFolder("")}
-                disabled={Boolean(creating)}
-              >
-                Reset
-              </Button>
-            ) : (
-              <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/40">
-                default
-              </span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setFolderOpen(true)}
-              disabled={Boolean(creating)}
-            >
-              Change
-            </Button>
-          </div>
-
-          <UsageCard />
-
-          <div className="grid gap-2 sm:grid-cols-2">
+          <ul className="mt-6 space-y-1">
             {suggestions.map((suggestion) => (
-              <button
-                key={suggestion.title}
-                type="button"
-                disabled={Boolean(creating)}
-                onClick={() => void start(suggestion.prompt)}
-                className="group flex items-start gap-3 rounded-xl border border-border/60 bg-card/45 p-4 text-left transition-[background-color,border-color,transform] hover:-translate-y-px hover:border-brand/30 hover:bg-card/70 disabled:opacity-60"
-              >
-                <span className="grid size-9 shrink-0 place-items-center rounded-[9px] border border-border/60 bg-muted/40 text-muted-foreground transition-colors group-hover:border-brand/20 group-hover:bg-brand/10 group-hover:text-brand">
+              <li key={suggestion.title}>
+                <button
+                  type="button"
+                  disabled={Boolean(creating)}
+                  onClick={() => void start(suggestion.prompt)}
+                  className="inline-flex items-center gap-2 rounded-sm py-0.5 text-left text-[13px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  title={suggestion.prompt}
+                >
                   {creating === suggestion.prompt ? (
-                    <Loader2 className="size-4 animate-spin" />
+                    <Loader2 className="size-3 shrink-0 animate-spin" />
                   ) : (
-                    <suggestion.icon className="size-4" />
+                    <ArrowRight className="size-3 shrink-0" />
                   )}
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[13px] font-medium">{suggestion.title}</span>
-                  <span className="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-muted-foreground">
-                    {suggestion.prompt}
-                  </span>
-                </span>
-              </button>
+                  {suggestion.title}
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
 
           {recent.length > 0 ? (
-            <div className="mt-10">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-                  Recent sessions
-                </h2>
-              </div>
-              <div className="glass-panel divide-y divide-white/6 overflow-hidden rounded-xl">
+            <section className="mt-12" aria-labelledby="recent-sessions">
+              <h2 id="recent-sessions" className="mb-1 text-[12px] text-muted-foreground">
+                Recent sessions
+              </h2>
+              <div className="divide-y divide-border border-y border-border">
                 {recent.map((session) => (
                   <Link
                     key={session.id}
                     href={`/chat/${session.id}`}
-                    className="flex items-center gap-3 px-3.5 py-2.5 text-[13px] transition-colors hover:bg-muted/40"
+                    className="flex items-center gap-3 px-1 py-2 text-[13px] transition-colors hover:bg-secondary/60"
                   >
-                    <span className="size-1.5 rounded-full bg-muted-foreground/30" />
+                    <span className="status-square bg-muted-foreground/50" aria-hidden="true" />
                     <span className="min-w-0 flex-1 truncate">{session.title}</span>
                     <span
-                      className="font-mono text-[10px] text-muted-foreground/60"
+                      className="font-mono text-[11px] text-muted-foreground"
                       suppressHydrationWarning
                     >
                       {new Date(session.time.updated).toLocaleDateString("en-US", {
@@ -313,12 +275,15 @@ export function NewChat() {
                         day: "numeric",
                       })}
                     </span>
-                    <ArrowRight className="size-3.5 text-muted-foreground/40" />
                   </Link>
                 ))}
               </div>
-            </div>
+            </section>
           ) : null}
+
+          <div className="mt-10">
+            <UsageCard />
+          </div>
         </div>
       </div>
 

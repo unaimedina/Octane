@@ -17,19 +17,15 @@ export default function GlobalError({
 
   return (
     <div className="flex min-h-[60dvh] items-center justify-center px-5 py-16">
-      <div className="glass-panel w-full max-w-md rounded-2xl p-7 text-center">
-        <div className="mx-auto grid size-11 place-items-center rounded-xl border border-destructive/25 bg-destructive/10 text-destructive">
-          <CircleAlert className="size-5" />
-        </div>
-        <h1 className="mt-4 text-lg font-semibold tracking-tight">
-          Something broke in this view.
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+      <div className="w-full max-w-md text-center">
+        <CircleAlert className="mx-auto size-5 text-destructive" aria-hidden="true" />
+        <h1 className="headline mt-4 text-[20px] leading-tight">Something broke in this view.</h1>
+        <p className="mt-2 text-[13px] text-muted-foreground">
           The OpenCode server may be unreachable. You can retry without losing the
           rest of the app.
         </p>
         {error.digest ? (
-          <p className="mt-3 font-mono text-[10px] text-muted-foreground/60">
+          <p className="mt-3 font-mono text-[11px] text-muted-foreground">
             digest {error.digest}
           </p>
         ) : null}

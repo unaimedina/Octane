@@ -3,19 +3,14 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  Check,
   ChevronDown,
-  Circle,
-  CircleDot,
-  CircleX,
+  ChevronRight,
   Copy,
   ExternalLink,
   FastForward,
-  GitCompareArrows,
   FolderInput,
   GitMerge,
   ListPlus,
-  ListTodo,
   Loader2,
   MessageSquare,
   MoreHorizontal,
@@ -58,24 +53,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatElapsed } from "@/lib/format";
 import { isReady, readyTasks, waitingOn } from "@/lib/task-graph";
 import type { TaskRunnerSettings } from "@/lib/tasks";
 import type { FileDiff, Task, TaskInput, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const OUTCOME_STYLE: Record<string, string> = {
-  done: "bg-success/15 text-success",
-  unverified: "bg-warning/15 text-warning",
-  blocked: "bg-destructive/15 text-destructive",
-  error: "bg-destructive/15 text-destructive",
-  aborted: "bg-muted text-muted-foreground",
+/** Status squares follow the plan 014 design contract. */
+const STATUS_SQUARE: Record<TaskStatus, string> = {
+  completed: "bg-success",
+  in_progress: "bg-brand",
+  blocked: "bg-destructive",
+  cancelled: "bg-muted-foreground/30",
+  pending: "bg-muted-foreground/50",
 };
+
+const OUTCOME_SQUARE: Record<string, string> = {
+  done: "bg-success",
+  unverified: "bg-warning",
+  blocked: "bg-destructive",
+  error: "bg-destructive",
+  aborted: "bg-muted-foreground/50",
+};
+
+/** Run duration: live while running, fixed once finished, "—" without a run. */
+function taskDuration(task: Task, now: number): string {
+  const run = task.run;
+  if (!run?.startedAt) return "—";
+  if (run.endedAt) return formatElapsed(run.endedAt - run.startedAt);
+  if (task.status === "in_progress") return formatElapsed(now - run.startedAt);
+  return "—";
+}
 
 function TaskRow({
   task,
   index,
   indexById,
   byId,
+  now,
   busy,
   onRun,
   onRunWorker,
@@ -89,6 +104,8 @@ function TaskRow({
   index: number;
   indexById: Map<string, number>;
   byId: Map<string, Task>;
+  /** Shared clock from ContextPanel; rows never run their own timers. */
+  now: number;
   busy?: boolean;
   onRun?: (task: Task) => void;
   onRunWorker?: (task: Task) => void;
@@ -98,19 +115,6 @@ function TaskRow({
   onDelete: (task: Task) => void;
   onStatus: (task: Task, status: TaskStatus) => void;
 }) {
-  const icon =
-    task.status === "completed" ? (
-      <Check className="size-3.5 text-success" />
-    ) : task.status === "in_progress" ? (
-      <Loader2 className="size-3.5 animate-spin text-info" />
-    ) : task.status === "blocked" ? (
-      <OctagonAlert className="size-3.5 text-destructive" />
-    ) : task.status === "cancelled" ? (
-      <CircleX className="size-3.5 text-muted-foreground/60" />
-    ) : (
-      <Circle className="size-3.5 text-muted-foreground/50" />
-    );
-
   const toggleTo: TaskStatus =
     task.status === "completed" ||
     task.status === "cancelled" ||
@@ -143,32 +147,40 @@ function TaskRow({
     task.prompt.trim() !== task.description.trim();
 
   return (
-    <li className="flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted/40">
+    <li className="group/task flex min-w-0 items-start gap-2.5 rounded-sm px-2 py-2 transition-colors hover:bg-accent/60">
+      <span className="w-5 shrink-0 pt-px text-right font-mono text-[11px] text-muted-foreground">
+        {index}
+      </span>
       <button
         type="button"
         onClick={toggleStatus}
         disabled={task.status === "in_progress"}
-        className="mt-0.5 shrink-0 rounded-full outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+        className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-sm outline-none transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
         aria-label={`Mark ${task.title} ${toggleTo}`}
         title={
           task.status === "in_progress" ? "Running" : `Mark ${toggleTo}`
         }
       >
-        {icon}
+        <span className={cn("status-square", STATUS_SQUARE[task.status])} />
       </button>
 
       <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            "line-clamp-2 break-words text-[13px] leading-snug",
-            (task.status === "completed" || task.status === "cancelled") &&
-              "text-muted-foreground line-through",
-          )}
-        >
-          <span className="mr-1 font-mono text-[10px] text-muted-foreground/70">
-            #{index}
+        <div className="flex min-w-0 items-start gap-2">
+          <div
+            className={cn(
+              "line-clamp-2 min-w-0 flex-1 break-words text-[13px] leading-snug",
+              (task.status === "completed" || task.status === "cancelled") &&
+                "text-muted-foreground line-through",
+            )}
+          >
+            {task.title}
+          </div>
+          <span
+            className="shrink-0 pt-px font-mono text-[11px] tabular-nums text-muted-foreground"
+            suppressHydrationWarning
+          >
+            {taskDuration(task, now)}
           </span>
-          {task.title}
         </div>
         {task.description ? (
           <p className="mt-1 line-clamp-2 break-words whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
@@ -176,36 +188,37 @@ function TaskRow({
           </p>
         ) : null}
         {showPrompt ? (
-          <p className="mt-1 flex min-w-0 items-start gap-1 text-[10px] leading-relaxed text-muted-foreground/70">
-            <MessageSquare className="mt-0.5 size-2.5 shrink-0" />
+          <p className="mt-1 flex min-w-0 items-start gap-1 text-[11px] leading-relaxed text-muted-foreground">
+            <MessageSquare className="mt-0.5 size-3 shrink-0" />
             <span className="min-w-0 truncate">{task.prompt}</span>
           </p>
         ) : null}
-        <div className="mt-1 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+        <div className="mt-1 flex items-center gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
           <span>{task.status.replace("_", " ")}</span>
           <span>·</span>
           <span>{task.priority}</span>
         </div>
         {afterLabel ? (
-          <p className="mt-1 min-w-0 truncate text-[10px] text-muted-foreground/70">
+          <p className="min-w-0 truncate text-[11px] leading-relaxed text-muted-foreground">
             after {afterLabel}
           </p>
         ) : null}
         {waiting.length > 0 ? (
           <p
-            className="mt-0.5 min-w-0 truncate text-[10px] text-muted-foreground"
+            className="min-w-0 truncate text-[11px] leading-relaxed text-muted-foreground"
             title={`Waiting on: ${waiting.join(", ")}`}
           >
             Waiting on: {waiting.join(", ")}
           </p>
         ) : null}
         {showOutcome && task.run?.outcome ? (
-          <div className="mt-1 flex min-w-0 items-center gap-1.5">
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] leading-relaxed">
             <span
-              className={cn(
-                "shrink-0 rounded px-1 py-px font-mono text-[9px] uppercase tracking-wider",
-                OUTCOME_STYLE[task.run.outcome],
-              )}
+              className={cn("status-square", OUTCOME_SQUARE[task.run.outcome])}
+              aria-hidden="true"
+            />
+            <span
+              className="shrink-0 font-mono text-muted-foreground"
               title={
                 task.run.outcome === "unverified"
                   ? "Finished without a result line"
@@ -216,7 +229,7 @@ function TaskRow({
             </span>
             {task.run.summary ? (
               <span
-                className="min-w-0 truncate text-[10px] text-muted-foreground"
+                className="min-w-0 truncate text-muted-foreground"
                 title={task.run.summary}
               >
                 {task.run.summary}
@@ -228,20 +241,20 @@ function TaskRow({
           <button
             type="button"
             onClick={() => onOpenWorker(workerID)}
-            className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] text-info hover:underline"
+            className="mt-0.5 flex min-w-0 items-center gap-1 truncate rounded-sm text-[11px] text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             title={`Worker session ${workerID}`}
           >
             <span className="min-w-0 truncate">Open worker</span>
-            <ExternalLink className="size-2.5 shrink-0" />
+            <ExternalLink className="size-3 shrink-0" />
           </button>
         ) : workerID ? (
           <Link
             href={`/chat/${encodeURIComponent(workerID)}`}
-            className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] text-info hover:underline"
+            className="mt-0.5 flex min-w-0 items-center gap-1 truncate rounded-sm text-[11px] text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             title={`Worker session ${workerID}`}
           >
             <span className="min-w-0 truncate">Open worker</span>
-            <ExternalLink className="size-2.5 shrink-0" />
+            <ExternalLink className="size-3 shrink-0" />
           </Link>
         ) : null}
       </div>
@@ -262,7 +275,7 @@ function TaskRow({
           <Button
             variant="ghost"
             size="icon-xs"
-            className="text-muted-foreground hover:text-success"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => onRun(task)}
             disabled={busy || task.status === "in_progress" || waiting.length > 0}
             aria-label={`Run task: ${task.title}`}
@@ -369,10 +382,10 @@ function TaskRunnerToolbar({
   }
 
   return (
-    <div className="space-y-1.5 border-b border-border/50 px-2 py-2">
+    <div className="flex flex-col gap-1.5 border-b border-border px-3 py-2">
       <div className="flex min-w-0 items-center gap-1.5">
         <Button
-          variant={runner.autoRun ? "secondary" : "outline"}
+          variant="ghost"
           size="xs"
           aria-pressed={runner.autoRun}
           disabled={pending !== null || !onToggleAutoRun}
@@ -384,7 +397,7 @@ function TaskRunnerToolbar({
               ? "Stop starting new tasks (running ones continue)"
               : "Keep starting ready tasks until the list is done"
           }
-          className="shrink-0"
+          className="shrink-0 text-muted-foreground hover:text-foreground aria-pressed:text-foreground"
         >
           {pending === "auto" ? (
             <Loader2 className="animate-spin" />
@@ -394,14 +407,14 @@ function TaskRunnerToolbar({
           {runner.autoRun ? "Stop auto-run" : "Auto-run"}
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="xs"
           disabled={pending !== null || ready === 0 || !onRunReady}
           onClick={() => {
             if (onRunReady) void act("ready", onRunReady);
           }}
           title="Start ready tasks in worker sessions now"
-          className="shrink-0"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
         >
           {pending === "ready" ? <Loader2 className="animate-spin" /> : <Play />}
           Run ready ({ready})
@@ -420,11 +433,11 @@ function TaskRunnerToolbar({
         >
           <SelectTrigger
             size="sm"
-            className="ml-auto h-6 min-w-0 shrink-0 gap-1 px-1.5 text-[11px] data-[size=sm]:h-6"
+            className="ml-auto h-6 min-w-0 shrink-0 gap-1 border-transparent bg-transparent px-1.5 font-mono text-[11px] text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[size=sm]:h-6 dark:bg-transparent dark:hover:bg-accent"
             aria-label="Parallel workers"
             title="How many worker sessions may run at once"
           >
-            <SelectValue>{`Parallel: ${runner.maxParallel}`}</SelectValue>
+            <SelectValue>{`workers ${runner.maxParallel}`}</SelectValue>
           </SelectTrigger>
           <SelectContent position="popper" align="end">
             {[1, 2, 3, 4].map((value) => (
@@ -436,20 +449,20 @@ function TaskRunnerToolbar({
         </Select>
       </div>
       {running > 0 || runner.autoRun ? (
-        <p className="font-mono text-[10px] text-muted-foreground">
+        <p className="font-mono text-[11px] text-muted-foreground">
           running {running}/{runner.maxParallel}
           {runner.autoRun ? " · auto-run on" : ""}
         </p>
       ) : null}
       {runner.stalled ? (
-        <div className="flex min-w-0 items-start gap-1.5 rounded-md bg-warning/10 px-2 py-1 text-[11px] text-warning">
+        <div className="flex min-w-0 items-start gap-1.5 rounded-sm bg-warning/10 px-2 py-1 text-[11px] text-warning">
           <OctagonAlert className="mt-0.5 size-3 shrink-0" />
           <span className="min-w-0 flex-1 break-words">{runner.stalled}</span>
           {onDismissStalled ? (
             <button
               type="button"
               onClick={onDismissStalled}
-              className="shrink-0 rounded opacity-70 hover:opacity-100"
+              className="shrink-0 rounded-sm opacity-70 outline-none hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Dismiss"
               title="Dismiss"
             >
@@ -458,7 +471,7 @@ function TaskRunnerToolbar({
           ) : null}
         </div>
       ) : null}
-      <p className="text-[10px] leading-snug text-muted-foreground/70">
+      <p className="text-[11px] leading-snug text-muted-foreground">
         Parallel workers share this folder. Make tasks that touch the same
         files depend on each other.
       </p>
@@ -473,18 +486,21 @@ function FileDiffDetails({ file }: { file: FileDiff }) {
     <details
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
-      className="group overflow-hidden rounded-[10px] border border-border/60 bg-card/30"
+      className="group border-b border-border last:border-b-0"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 text-xs [&::-webkit-details-marker]:hidden">
-        <X className="size-3 -rotate-45 text-muted-foreground/40 group-open:hidden" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-[12px]"
+          title={file.file.replace(/\\/g, "/")}
+        >
           {file.file.replace(/\\/g, "/")}
         </span>
-        <span className="font-mono text-[10px] text-success dark:text-success">
+        <span className="font-mono text-[11px] text-success">
           +{file.additions}
         </span>
-        <span className="font-mono text-[10px] text-destructive dark:text-destructive">
-          -{file.deletions}
+        <span className="font-mono text-[11px] text-destructive">
+          −{file.deletions}
         </span>
         <button
           type="button"
@@ -502,7 +518,7 @@ function FileDiffDetails({ file }: { file: FileDiff }) {
               .then(() => toast.success("Patch copied"))
               .catch(() => toast.error("Could not copy the patch"));
           }}
-          className="rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted/50 hover:text-foreground"
+          className="rounded-sm p-0.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`Copy patch for ${file.file}`}
           title="Copy patch"
         >
@@ -510,7 +526,7 @@ function FileDiffDetails({ file }: { file: FileDiff }) {
         </button>
       </summary>
       {open ? (
-        <div className="border-t border-border/60">
+        <div className="border-t border-border">
           {patch ? (
             <DiffView
               diff={patch}
@@ -610,6 +626,13 @@ export const ContextPanel = React.memo(function ContextPanel({
   const [deleteTarget, setDeleteTarget] = React.useState<Task | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
+  // One shared 1 s clock, only while a task is running, for live durations.
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (running === 0) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
 
   const tab: "tasks" | "changes" =
     !hasRepo && selectedTab === "changes"
@@ -676,7 +699,7 @@ export const ContextPanel = React.memo(function ContextPanel({
   }
 
   return (
-    <div className={cn("flex h-full min-h-0 flex-col bg-muted/15", className)}>
+    <div className={cn("flex h-full min-h-0 flex-col", className)}>
       <Tabs
         value={tab}
         onValueChange={(value) =>
@@ -684,25 +707,29 @@ export const ContextPanel = React.memo(function ContextPanel({
         }
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="flex min-w-0 items-center gap-1 border-b border-border/70 px-3 py-2.5">
-          <TabsList className="min-w-0 flex-1">
-            <TabsTrigger value="tasks" className="min-w-0 flex-1 gap-1.5 overflow-hidden text-xs">
-              <ListTodo className="size-3.5" />
+        <div className="flex h-11 min-w-0 items-center gap-1 border-b border-border px-3">
+          <TabsList className="h-9 min-w-0 gap-4 bg-transparent p-0">
+            <TabsTrigger
+              value="tasks"
+              className="min-w-0 flex-none gap-1 overflow-hidden px-0 text-[13px] font-medium text-muted-foreground data-active:text-foreground"
+            >
               Tasks
-              <span className="font-mono text-[10px] text-muted-foreground">
+              <span className="font-mono text-[11px] text-muted-foreground">
                 {tasks.length ? `${completed}/${tasks.length}` : "0"}
               </span>
               {ready > 0 ? (
-                <span className="font-mono text-[10px] text-muted-foreground">
+                <span className="font-mono text-[11px] text-muted-foreground">
                   ready {ready}
                 </span>
               ) : null}
             </TabsTrigger>
             {hasRepo ? (
-              <TabsTrigger value="changes" className="min-w-0 flex-1 gap-1.5 overflow-hidden text-xs">
-                <GitCompareArrows className="size-3.5" />
+              <TabsTrigger
+                value="changes"
+                className="min-w-0 flex-none gap-1 overflow-hidden px-0 text-[13px] font-medium text-muted-foreground data-active:text-foreground"
+              >
                 Changes
-                <span className="font-mono text-[10px] text-muted-foreground">
+                <span className="font-mono text-[11px] text-muted-foreground">
                   {diff.length || "0"}
                 </span>
               </TabsTrigger>
@@ -710,8 +737,8 @@ export const ContextPanel = React.memo(function ContextPanel({
           </TabsList>
           <Button
             variant="ghost"
-            size="icon-xs"
-            className="shrink-0"
+            size="icon-sm"
+            className="ml-auto shrink-0 text-muted-foreground"
             onClick={openCreate}
             aria-label="New task"
             title="New task"
@@ -723,8 +750,8 @@ export const ContextPanel = React.memo(function ContextPanel({
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon-xs"
-                  className="shrink-0"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground"
                   aria-label="More task actions"
                   title="More task actions"
                 >
@@ -777,8 +804,7 @@ export const ContextPanel = React.memo(function ContextPanel({
           <ScrollArea className="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block">
             {tasks.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-                <CircleDot className="size-6 text-muted-foreground/40" />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[13px] text-muted-foreground">
                   No tasks yet. Add a task, or import plan files from the
                   session&apos;s plans folder.
                 </p>
@@ -788,7 +814,7 @@ export const ContextPanel = React.memo(function ContextPanel({
                   </Button>
                   {planSteps > 0 && onImportPlan ? (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => void importPlan()}
                       disabled={importing}
@@ -804,7 +830,7 @@ export const ContextPanel = React.memo(function ContextPanel({
                   ) : null}
                   {onImportPlanFiles ? (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={onImportPlanFiles}
                       className="gap-1.5"
@@ -820,9 +846,9 @@ export const ContextPanel = React.memo(function ContextPanel({
             ) : (
               <>
                 {planFiles && planFiles.count > 0 && onImportPlanFiles ? (
-                  <div className="border-b border-border/50 p-2">
+                  <div className="border-b border-border p-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={onImportPlanFiles}
                       disabled={busy}
@@ -834,9 +860,9 @@ export const ContextPanel = React.memo(function ContextPanel({
                   </div>
                 ) : null}
                 {planSteps > 0 && onImportPlan ? (
-                  <div className="border-b border-border/50 p-2">
+                  <div className="border-b border-border p-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => void importPlan()}
                       disabled={importing || busy}
@@ -851,7 +877,7 @@ export const ContextPanel = React.memo(function ContextPanel({
                     </Button>
                   </div>
                 ) : null}
-                <ul className="w-full space-y-0.5 p-2">
+                <ul className="flex w-full flex-col gap-0.5 p-2">
                   {tasks.map((task, position) => (
                     <TaskRow
                       key={task.id}
@@ -859,6 +885,7 @@ export const ContextPanel = React.memo(function ContextPanel({
                       index={position + 1}
                       indexById={indexById}
                       byId={byId}
+                      now={now}
                       busy={busy}
                       onRun={onRunTask}
                       onRunWorker={onRunTaskInWorker}
@@ -880,23 +907,22 @@ export const ContextPanel = React.memo(function ContextPanel({
             <ScrollArea className="h-full [&_[data-slot=scroll-area-viewport]>div]:!block">
               {diff.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 px-6 py-14 text-center">
-                  <GitCompareArrows className="size-6 text-muted-foreground/40" />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[13px] text-muted-foreground">
                     No file changes in this session yet.
                   </p>
                 </div>
               ) : (
-                <div className="p-2">
-                  <div className="mb-2 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
-                    <span className="font-mono uppercase tracking-[0.14em]">
+                <div>
+                  <div className="flex items-center justify-between border-b border-border px-3 py-2 text-[11px]">
+                    <span className="font-mono text-muted-foreground">
                       {diff.length} file{diff.length === 1 ? "" : "s"}
                     </span>
                     <span className="font-mono">
-                      <span className="text-success dark:text-success">+{additions}</span>{" "}
-                      <span className="text-destructive dark:text-destructive">-{deletions}</span>
+                      <span className="text-success">+{additions}</span>{" "}
+                      <span className="text-destructive">−{deletions}</span>
                     </span>
                   </div>
-                  <div className="space-y-2">
+                  <div>
                     {diff.map((file) => (
                       <FileDiffDetails key={file.file} file={file} />
                     ))}
@@ -945,7 +971,7 @@ export const ContextPanel = React.memo(function ContextPanel({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="rounded-md bg-destructive text-white hover:bg-destructive/90"
               disabled={deleting}
               onClick={(event) => {
                 event.preventDefault();

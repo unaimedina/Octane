@@ -5,7 +5,6 @@ import { AlertTriangle, Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/chat/markdown";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, apiJson, jsonBody } from "@/lib/api";
 import type { Project } from "@/lib/types";
@@ -129,15 +128,14 @@ export function ProjectAgentsCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <CardTitle className="text-sm">AGENTS.md</CardTitle>
-            <CardDescription className="text-xs">
-              Instructions OpenCode loads for every session in this folder.
-            </CardDescription>
-          </div>
+    <section className="border-t border-border py-6 first:border-t-0 first:pt-0">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-[13px] font-medium">AGENTS.md</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Instructions OpenCode loads for every session in this folder.
+          </p>
+        </div>
           {!editing && state && !unavailable ? (
             <Button
               variant="ghost"
@@ -148,11 +146,10 @@ export function ProjectAgentsCard({
               <Pencil className="size-3" />
             </Button>
           ) : null}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      </div>
+      <div className="space-y-3">
         {project.context.trim() && !unavailable ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border-l-2 border-warning bg-warning/8 px-3 py-2">
             <p className="text-[11px] leading-relaxed">
               This project still has legacy global context.
             </p>
@@ -170,11 +167,11 @@ export function ProjectAgentsCard({
         ) : null}
 
         {unavailable ? (
-          <p className="rounded-[10px] border border-dashed border-border/60 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-xs leading-relaxed text-muted-foreground">
             {unavailable}
           </p>
         ) : loadError ? (
-          <div className="flex items-center justify-between gap-2 rounded-[10px] border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
+          <div className="flex items-center justify-between gap-2 rounded-sm border-l-2 border-destructive bg-destructive/8 px-3 py-2 text-xs text-destructive">
             <span>{loadError}</span>
             <Button size="sm" variant="outline" onClick={() => void load()}>
               Retry
@@ -187,9 +184,9 @@ export function ProjectAgentsCard({
         ) : editing ? (
           <div className="space-y-2">
             {conflict ? (
-              <div className="space-y-2 rounded-[10px] border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+              <div className="space-y-2 rounded-sm border-l-2 border-warning bg-warning/8 px-3 py-2">
                 <p className="flex items-center gap-1.5 text-[11px] font-medium">
-                  <AlertTriangle className="size-3.5" /> AGENTS.md changed on disk
+                  <AlertTriangle className="size-3.5 text-warning" /> AGENTS.md changed on disk
                 </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   The agent or git edited the file after you opened it. Reload to
@@ -224,7 +221,7 @@ export function ProjectAgentsCard({
               spellCheck={false}
             />
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[10px] text-muted-foreground/60">
+              <span className="font-mono text-[11px] text-muted-foreground">
                 {draft.length.toLocaleString("en-US")} /{" "}
                 {MAX_AGENTS_CHARS.toLocaleString("en-US")}
               </span>
@@ -252,7 +249,7 @@ export function ProjectAgentsCard({
             </div>
           </div>
         ) : state?.exists && state.content.trim() ? (
-          <div className="scrollbar-thin max-h-96 overflow-auto rounded-[10px] border border-border/60 bg-muted/20 p-3 text-xs">
+          <div className="scrollbar-thin max-h-96 overflow-auto rounded-md border border-border bg-muted p-3 text-xs">
             <Markdown text={state.content} />
           </div>
         ) : (
@@ -266,7 +263,7 @@ export function ProjectAgentsCard({
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
