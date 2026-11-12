@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import {
+  BookOpen,
   Bot,
   Check,
   ChevronRight,
   CircleAlert,
+  CircleHelp,
   Copy,
   FilePen,
   FileText,
@@ -20,42 +22,33 @@ import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { DiffView } from "@/components/chat/diff-view";
 import { OpenCodeSubagentView } from "@/components/chat/opencode-subagent";
+import { SpecialisedToolView, hasSpecialisedView } from "@/components/chat/tool-views";
 import { Button } from "@/components/ui/button";
+import { describeTool, exploreSummary, sentenceText } from "@/lib/tool-activity";
+import type { ToolKind } from "@/lib/tool-activity";
 import type { ToolPart } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const toolIcons: Record<string, LucideIcon> = {
-  bash: Terminal,
-  shell: Terminal,
+const kindIcons: Record<ToolKind, LucideIcon> = {
   read: FileText,
-  write: FilePen,
+  search: Search,
+  files: Search,
   edit: FilePen,
-  patch: FilePen,
-  grep: Search,
-  glob: Search,
-  list: Search,
-  webfetch: Globe,
-  todowrite: ListTodo,
+  write: FilePen,
+  shell: Terminal,
+  web: Globe,
+  skill: BookOpen,
+  question: CircleHelp,
   todo: ListTodo,
-  task: Bot,
+  script: Terminal,
+  agent: Bot,
+  other: Wrench,
 };
+
+export const ToolRootContext = React.createContext<string | undefined>(undefined);
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
-function pickSummary(part: ToolPart): string {
-  const input = asRecord(part.state.input);
-  const state = part.state;
-  if (state.status === "running" && state.title) return state.title;
-  if (state.status === "completed" && state.title) return state.title;
-  for (const key of ["description", "command", "file_path", "filePath", "path", "pattern", "query", "url", "prompt"]) {
-    const value = input[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.length > 160 ? `${value.slice(0, 157)}…` : value;
-    }
-  }
-  return part.tool;
 }
 
 type EditPreview = { file?: string; before: string; after: string };
@@ -149,13 +142,12 @@ function ShellCard({ part }: { part: ToolPart }) {
     (typeof input.command === "string" && input.command) ||
     (typeof input.cmd === "string" && input.cmd) ||
     (typeof input.script === "string" && input.script) ||
-    pickSummary(part);
+    part.tool;
+  const root = React.useContext(ToolRootContext);
   const description =
-    typeof input.description === "string"
+    typeof input.description === "string" && input.description.trim()
       ? input.description
-      : "title" in state && typeof state.title === "string"
-        ? state.title
-        : undefined;
+      : sentenceText(describeTool(part, root));
   const metadata = asRecord("metadata" in state ? state.metadata : undefined);
   const exitCode =
     typeof metadata.exit === "number"
@@ -288,31 +280,33 @@ function ShellCard({ part }: { part: ToolPart }) {
   );
 }
 
+function RawDetails({ label, text, tone }: { label: string; text: string; tone?: "error" }) {
+  return (
+    <details className="rounded-md border border-border/60 bg-muted/20">
+      <summary className="cursor-pointer list-none px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
+        {label}
+      </summary>
+      <pre
+        className={cn(
+          "scrollbar-thin max-h-56 overflow-auto border-t border-border/60 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words",
+          tone === "error" && "text-destructive",
+        )}
+      >
+        {text.length > 20_000 ? `${text.slice(0, 20_000)}\n… truncated` : text}
+      </pre>
+    </details>
+  );
+}
+
 function ToolCard({ part }: { part: ToolPart }) {
-  const edits = editPreviews(part);
+  const root = React.useContext(ToolRootContext);
   const [open, setOpen] = React.useState(part.state.status === "error");
   const state = part.state;
-  const metadata = asRecord("metadata" in state ? state.metadata : undefined);
-  const Icon = toolIcons[part.tool] ?? Wrench;
-  const summary = pickSummary(part);
   const running = state.status === "running" || state.status === "pending";
   const failed = state.status === "error";
-
-  const diff =
-    typeof metadata.diff === "string"
-      ? metadata.diff
-      : typeof metadata.patch === "string"
-        ? metadata.patch
-        : undefined;
-
-  const output =
-    state.status === "completed"
-      ? state.output
-      : state.status === "error"
-        ? state.error
-        : state.status === "running"
-          ? undefined
-          : state.raw;
+  const sentence = React.useMemo(() => describeTool(part, root), [part, root]);
+  const Icon = kindIcons[sentence.kind] ?? Wrench;
+  const fullText = sentenceText(sentence);
 
   return (
     <div
@@ -326,6 +320,7 @@ function ToolCard({ part }: { part: ToolPart }) {
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
         aria-expanded={open}
+        title={fullText}
       >
         <span
           className={cn(
@@ -341,26 +336,27 @@ function ToolCard({ part }: { part: ToolPart }) {
             <Icon className="size-3.5 text-muted-foreground" />
           )}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="font-mono text-[11px] font-medium uppercase tracking-wide">
-              {part.tool}
-            </span>
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="shrink-0 text-xs text-foreground/90">{sentence.verb}</span>
+          {sentence.target ? (
+            <span className="truncate font-mono text-[11px]">{sentence.target}</span>
+          ) : null}
+          {sentence.detail ? (
             <span
               className={cn(
-                "rounded px-1.5 py-px font-mono text-[9px] uppercase tracking-wider",
-                running && "bg-info/10 text-info dark:text-info",
-                failed && "bg-destructive/10 text-destructive",
-                !running && !failed && "bg-success/10 text-success dark:text-success",
+                "shrink-0 text-[11px] text-muted-foreground",
+                failed && "max-w-[40%] truncate text-destructive/80",
               )}
             >
-              {state.status}
+              · {sentence.detail}
             </span>
-          </span>
-          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-            {summary}
-          </span>
+          ) : null}
         </span>
+        {running ? (
+          <span className="size-1.5 shrink-0 rounded-full bg-info pulse-dot" />
+        ) : failed ? (
+          <span className="size-1.5 shrink-0 rounded-full bg-destructive" />
+        ) : null}
         <ChevronRight
           className={cn(
             "size-3.5 shrink-0 text-muted-foreground/60 transition-transform",
@@ -369,8 +365,51 @@ function ToolCard({ part }: { part: ToolPart }) {
         />
       </button>
 
-      {open ? (
-        <div className="space-y-3 border-t border-border/60 bg-background/40 px-3 py-3">
+      {open ? <ToolCardBody part={part} root={root} target={sentence.target} /> : null}
+    </div>
+  );
+}
+
+function ToolCardBody({
+  part,
+  root,
+  target,
+}: {
+  part: ToolPart;
+  root?: string;
+  target: string;
+}) {
+  const state = part.state;
+  const failed = state.status === "error";
+  const edits = React.useMemo(() => editPreviews(part), [part]);
+  const specialised = React.useMemo(() => hasSpecialisedView(part), [part]);
+  const metadata = asRecord("metadata" in state ? state.metadata : undefined);
+  const diff =
+    typeof metadata.diff === "string"
+      ? metadata.diff
+      : typeof metadata.patch === "string"
+        ? metadata.patch
+        : undefined;
+  const output =
+    state.status === "completed"
+      ? state.output
+      : state.status === "error"
+        ? state.error
+        : state.status === "running"
+          ? undefined
+          : state.raw;
+  const rawInput = JSON.stringify(state.input, null, 2);
+
+  return (
+    <div className="space-y-3 border-t border-border/60 bg-background/40 px-3 py-3">
+      {specialised ? (
+        <>
+          <SpecialisedToolView part={part} root={root} />
+          <RawDetails label="Raw input" text={rawInput} />
+          {output ? <RawDetails label="Raw output" text={output} /> : null}
+        </>
+      ) : (
+        <>
           {edits.length > 0 ? (
             <div className="space-y-2">
               {edits.map((edit, index) => (
@@ -380,39 +419,21 @@ function ToolCard({ part }: { part: ToolPart }) {
                 >
                   <div className="flex items-center gap-1.5 border-b border-border/60 bg-muted/40 px-2.5 py-1.5 font-mono text-[10px] text-muted-foreground">
                     <FilePen className="size-3" />
-                    <span className="truncate">{edit.file ?? summary}</span>
+                    <span className="truncate">{edit.file ?? target}</span>
                   </div>
                   <DiffView
                     before={edit.before}
                     after={edit.after}
-                    file={edit.file ?? summary}
+                    file={edit.file ?? target}
                   />
                 </div>
               ))}
             </div>
           ) : diff ? (
-            <DiffView diff={diff} file={summary} />
+            <DiffView diff={diff} file={target} />
           ) : null}
 
-          {edits.length > 0 ? (
-            <details className="rounded-md border border-border/60 bg-muted/20">
-              <summary className="cursor-pointer list-none px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
-                Raw input
-              </summary>
-              <pre className="scrollbar-thin max-h-56 overflow-auto border-t border-border/60 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words">
-                {JSON.stringify(state.input, null, 2)}
-              </pre>
-            </details>
-          ) : (
-            <div>
-              <div className="mb-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70">
-                Input
-              </div>
-              <pre className="scrollbar-thin max-h-56 overflow-auto rounded-md border border-border/60 bg-muted/40 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-words">
-                {JSON.stringify(state.input, null, 2)}
-              </pre>
-            </div>
-          )}
+          <RawDetails label="Raw input" text={rawInput} />
 
           {output ? (
             <div>
@@ -429,22 +450,67 @@ function ToolCard({ part }: { part: ToolPart }) {
               </pre>
             </div>
           ) : null}
+        </>
+      )}
 
-          {state.status === "completed" && state.attachments?.length ? (
-            <div className="flex flex-wrap gap-2">
-              {state.attachments.map((attachment) =>
-                attachment.mime.startsWith("image/") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={attachment.id}
-                    src={attachment.url}
-                    alt={attachment.filename ?? "attachment"}
-                    className="max-h-56 rounded-lg border border-border object-contain"
-                  />
-                ) : null,
-              )}
-            </div>
-          ) : null}
+      {state.status === "completed" && state.attachments?.length ? (
+        <div className="flex flex-wrap gap-2">
+          {state.attachments.map((attachment) =>
+            attachment.mime.startsWith("image/") ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={attachment.id}
+                src={attachment.url}
+                alt={attachment.filename ?? "attachment"}
+                className="max-h-56 rounded-lg border border-border object-contain"
+              />
+            ) : null,
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function ExploreGroup({ parts }: { parts: ToolPart[] }) {
+  const summary = React.useMemo(() => exploreSummary(parts), [parts]);
+  const failed = parts.some((part) => part.state.status === "error");
+  const [open, setOpen] = React.useState(failed);
+
+  return (
+    <div
+      className={cn(
+        "my-2 overflow-hidden rounded-xl border bg-card/40 transition-colors",
+        failed ? "border-destructive/30" : "border-border/80",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:bg-muted/40"
+        aria-expanded={open}
+        title={summary.text}
+      >
+        <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border/70 bg-muted/60">
+          {summary.running ? (
+            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+          ) : (
+            <Search className="size-3.5 text-muted-foreground" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-xs text-foreground/90">{summary.text}</span>
+        <ChevronRight
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground/60 transition-transform",
+            open && "rotate-90",
+          )}
+        />
+      </button>
+      {open ? (
+        <div className="space-y-1 border-t border-border/60 bg-background/40 p-2 [&>div]:my-0">
+          {parts.map((part) => (
+            <ToolCallPart key={part.id} part={part} />
+          ))}
         </div>
       ) : null}
     </div>

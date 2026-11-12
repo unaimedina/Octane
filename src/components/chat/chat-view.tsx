@@ -34,7 +34,8 @@ import {
 import { Composer, type ModelSelection, type OutgoingMessage } from "@/components/chat/composer";
 import { Markdown } from "@/components/chat/markdown";
 import { SubagentPartView } from "@/components/chat/subagent-part";
-import { ToolCallPart } from "@/components/chat/tool-part";
+import { ExploreGroup, ToolCallPart, ToolRootContext } from "@/components/chat/tool-part";
+import { currentActivity, groupExploration, isExploreTool } from "@/lib/tool-activity";
 import { WorkerDialog } from "@/components/chat/worker-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -445,17 +446,26 @@ const AssistantMessageView = React.memo(function AssistantMessageView({
   streaming: boolean;
   harnessLabel: string;
 }) {
+  const { items, lastTextPart } = React.useMemo(() => {
+    let lastText: MessageWithParts["parts"][number] | undefined;
+    for (let index = message.parts.length - 1; index >= 0; index--) {
+      if (message.parts[index].type === "text") {
+        lastText = message.parts[index];
+        break;
+      }
+    }
+    return {
+      items: groupExploration(
+        message.parts,
+        (part) => part.type === "tool" && isExploreTool(part.tool),
+      ),
+      lastTextPart: lastText,
+    };
+  }, [message.parts]);
   if (message.info.role !== "assistant") return null;
   const info = message.info;
   const duration = info.time.completed ? info.time.completed - info.time.created : undefined;
   const error = errorLabel(info.error);
-  let lastTextIndex: number | undefined;
-  for (let index = message.parts.length - 1; index >= 0; index--) {
-    if (message.parts[index].type === "text") {
-      lastTextIndex = index;
-      break;
-    }
-  }
 
   return (
     <div className="flex gap-3">
@@ -474,13 +484,20 @@ const AssistantMessageView = React.memo(function AssistantMessageView({
         </div>
 
         <div className="space-y-2">
-          {message.parts.map((part, index) => (
-            <AssistantPart
-              key={part.id}
-              part={part}
-              streaming={streaming && index === lastTextIndex}
-            />
-          ))}
+          {items.map((item) =>
+            item.type === "explore" ? (
+              <ExploreGroup
+                key={item.parts[0].id}
+                parts={item.parts.filter((part) => part.type === "tool")}
+              />
+            ) : (
+              <AssistantPart
+                key={item.part.id}
+                part={item.part}
+                streaming={streaming && item.part === lastTextPart}
+              />
+            ),
+          )}
         </div>
 
         {error ? (
@@ -1714,6 +1731,10 @@ export function ChatView({
   const visibleMessages =
     messages.length > visibleCount ? messages.slice(-visibleCount) : messages;
   const hiddenCount = messages.length - visibleMessages.length;
+  const activity = React.useMemo(
+    () => (busy ? currentActivity(visibleMessages, session.directory) : null),
+    [busy, visibleMessages, session.directory],
+  );
 
   return (
     <div className="flex h-full min-h-0">
@@ -1927,31 +1948,33 @@ export function ChatView({
                       </Button>
                     </div>
                   ) : null}
-                  {visibleMessages.map((message) => (
-                    <div key={message.info.id} className="chat-message">
-                      {message.info.role === "user" ? (
-                        message.info.agent === "context" ? (
-                          <ContextMessageView message={message} />
+                  <ToolRootContext.Provider value={session.directory ?? undefined}>
+                    {visibleMessages.map((message) => (
+                      <div key={message.info.id} className="chat-message">
+                        {message.info.role === "user" ? (
+                          message.info.agent === "context" ? (
+                            <ContextMessageView message={message} />
+                          ) : (
+                            <UserMessageView message={message} />
+                          )
                         ) : (
-                          <UserMessageView message={message} />
-                        )
-                      ) : (
-                        <AssistantMessageView
-                          message={message}
-                          streaming={message.info.id === streamingMessageId}
-                          harnessLabel={harnessLabel}
-                        />
-                      )}
-                    </div>
-                  ))}
+                          <AssistantMessageView
+                            message={message}
+                            streaming={message.info.id === streamingMessageId}
+                            harnessLabel={harnessLabel}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </ToolRootContext.Provider>
                   {busy ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                       <span className="flex gap-1">
                         <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.2s]" />
                         <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:-0.1s]" />
                         <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground/50" />
                       </span>
-                      {harnessLabel} is working
+                      <span className="truncate">{activity ?? `${harnessLabel} is working`}</span>
                     </div>
                   ) : null}
                   <div className="h-2" />
