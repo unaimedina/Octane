@@ -1,3 +1,4 @@
+
 name: Build final image
 
 on:
@@ -29,7 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # GHCR only accepts lowercase image names.
+      # Resolve lowercase Docker image name.
       - name: Resolve image name
         run: echo "IMAGE_NAME=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
@@ -39,7 +40,7 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Needed for pulls on every run and for pushes on master/tags/manual runs.
+      # Login to GHCR.
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -47,6 +48,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Generate Docker metadata.
       - name: Image metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -60,8 +62,7 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      # Every run builds both architectures (the app is compiled once on the
-      # runner's platform; only sharp is installed per target). PRs never push.
+      # Build and publish Docker image.
       - name: Build and push final image
         uses: docker/build-push-action@v6
         with:
@@ -73,3 +74,78 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Discord notification.
+      - name: Discord notification
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          JOB_STATUS: ${{ job.status }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "Discord webhook not configured."
+            exit 0
+          fi
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            COLOR=3066993
+            STATUS="SUCCESS"
+          else
+            COLOR=15158332
+            STATUS="FAILED"
+          fi
+
+          TAGS=$(printf '%s\n' "$IMAGE_TAGS" | sed 's/^/• /')
+
+          PAYLOAD=$(jq -n \
+            --arg status "$STATUS" \
+            --arg image "$IMAGE_NAME" \
+            --arg tags "$TAGS" \
+            --arg hash "$COMMIT" \
+            --arg url "$RUN_URL" \
+            --argjson color "$COLOR" \
+            '{
+              username: "Docker Builder",
+              embeds: [{
+                title: "Docker Build \($status)",
+                color: $color,
+                fields: [
+                  {
+                    name: "Docker Image",
+                    value: ("`" + $image + "`"),
+                    inline: false
+                  },
+                  {
+                    name: "Image Tags",
+                    value: ("```text\n" + $tags + "\n```"),
+                    inline: false
+                  },
+                  {
+                    name: "Commit HASH",
+                    value: ("`" + $hash + "`"),
+                    inline: false
+                  },
+                  {
+                    name: "Platforms",
+                    value: "`linux/amd64` · `linux/arm64`",
+                    inline: false
+                  }
+                ],
+                description: "[View GitHub Actions build](\($url))",
+                footer: {
+                  text: "GitHub Actions • GHCR"
+                },
+                timestamp: (now | todate)
+              }]
+            }')
+
+          curl -fsS \
+            --retry 3 \
+            --retry-delay 2 \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$DISCORD_WEBHOOK"
