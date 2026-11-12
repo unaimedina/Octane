@@ -117,14 +117,7 @@ export function LoginForm({
   const discordHref = `/api/auth/discord/start?next=${encodeURIComponent(next)}`;
 
   return (
-    <main
-      className="dark relative min-h-dvh overflow-x-hidden bg-background text-foreground"
-      style={{
-        backgroundImage:
-          "radial-gradient(900px 540px at 50% -14%, color-mix(in oklab, var(--brand) 10%, transparent), transparent 72%), radial-gradient(760px 520px at 100% 108%, color-mix(in oklab, var(--info) 6%, transparent), transparent 72%)",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
+    <main className="dark relative min-h-dvh overflow-x-hidden bg-background text-foreground">
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1240px] flex-col px-5 sm:px-8">
         <header className="flex h-16 shrink-0 items-center border-b border-border/60">
           <BrandLogo />

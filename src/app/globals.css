@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-jetbrains-mono);
-  --font-heading: var(--font-inter-tight);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-display: var(--font-saira);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,103 +48,104 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Capped: nothing in OCTANE is rounder than 12px (plan 014 design contract). */
+  --radius-2xl: var(--radius-xl);
+  --radius-3xl: var(--radius-xl);
+  --radius-4xl: var(--radius-xl);
 }
 
+/* Warm graphite. One accent (fuel orange) for agent activity, selection and the
+   primary action only. See plans/014 "Design contract". */
 :root,
 .dark {
   color-scheme: dark;
-  --background: #0b0f14;
-  --foreground: #f8fafc;
-  --card: #1a1f26;
-  --card-foreground: #f8fafc;
-  --popover: #1a1f26;
-  --popover-foreground: #f8fafc;
-  --primary: #ff8a00;
-  --primary-foreground: #0b0f14;
-  --secondary: #242b34;
-  --secondary-foreground: #f8fafc;
-  --muted: #151a21;
-  --muted-foreground: #a1a7b3;
-  --accent: #232a33;
-  --accent-foreground: #f8fafc;
-  --destructive: #ff5364;
-  --success: #00d6a0;
-  --warning: #ffb020;
-  --info: #00d4ff;
-  --border: rgba(248, 250, 252, 0.1);
-  --input: rgba(248, 250, 252, 0.14);
+  --background: #1a1918;
+  --foreground: #eceae6;
+  --card: #232220;
+  --card-foreground: #eceae6;
+  --popover: #2a2927;
+  --popover-foreground: #eceae6;
+  --primary: #ff8a00; /* unslop-ignore: OCTANE brand orange, from the logo */
+  --primary-foreground: #1a1918;
+  --secondary: #2c2b29;
+  --secondary-foreground: #eceae6;
+  --muted: #262523;
+  --muted-foreground: #8e8a84;
+  --accent: #2c2b29;
+  --accent-foreground: #eceae6;
+  --destructive: #e5534b;
+  --success: #3fb950;
+  --warning: #d29922;
+  --info: #8e8a84;
+  --border: rgba(255, 255, 255, 0.07);
+  --input: rgba(255, 255, 255, 0.11);
   --ring: #ff8a00;
   --brand: #ff8a00;
-  --brand-foreground: #0b0f14;
+  --brand-foreground: #1a1918;
   --chart-1: #ff8a00;
-  --chart-2: #00d4ff;
-  --chart-3: #00d6a0;
-  --chart-4: #ffb020;
-  --chart-5: #a1a7b3;
-  --radius: 0.75rem;
-  --sidebar: #11161d;
-  --sidebar-foreground: #f8fafc;
+  --chart-2: #8e8a84;
+  --chart-3: #3fb950;
+  --chart-4: #d29922;
+  --chart-5: #5e5a55;
+  --radius: 0.625rem;
+  --sidebar: #1a1918;
+  --sidebar-foreground: #eceae6;
   --sidebar-primary: #ff8a00;
-  --sidebar-primary-foreground: #0b0f14;
-  --sidebar-accent: rgba(255, 138, 0, 0.1);
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: rgba(248, 250, 252, 0.08);
+  --sidebar-primary-foreground: #1a1918;
+  --sidebar-accent: #2c2b29;
+  --sidebar-accent-foreground: #eceae6;
+  --sidebar-border: rgba(255, 255, 255, 0.07);
   --sidebar-ring: #ff8a00;
-  --glass: rgba(26, 31, 38, 0.58);
-  --glass-strong: rgba(26, 31, 38, 0.88);
-  --glass-border: color-mix(in oklab, var(--foreground) 12%, var(--card));
-  --glass-highlight: rgba(248, 250, 252, 0.06);
+  /* Deprecated glass tokens: now flat. Removed in plan 018. */
+  --glass: var(--card);
+  --glass-strong: var(--popover);
+  --glass-border: var(--border);
+  --glass-highlight: transparent;
 }
 
 .light {
   color-scheme: light;
-  --background: #eef1f5;
-  --foreground: #0b0f14;
-  --card: #f8fafc;
-  --card-foreground: #0b0f14;
+  --background: #f2f1ef;
+  --foreground: #1a1918;
+  --card: #ffffff;
+  --card-foreground: #1a1918;
   --popover: #ffffff;
-  --popover-foreground: #0b0f14;
-  --primary: #b85700;
+  --popover-foreground: #1a1918;
+  --primary: #b35600;
   --primary-foreground: #ffffff;
-  --secondary: #e4e9ef;
-  --secondary-foreground: #0b0f14;
-  --muted: #e8ecf1;
-  --muted-foreground: #5b6470;
-  --accent: #e1e7ee;
-  --accent-foreground: #0b0f14;
-  --destructive: #d92d3f;
-  --success: #008a6b;
-  --warning: #b26a00;
-  --info: #007a99;
-  --border: rgba(11, 15, 20, 0.1);
-  --input: rgba(11, 15, 20, 0.14);
-  --ring: #b85700;
-  --brand: #b85700;
+  --secondary: #e9e7e3;
+  --secondary-foreground: #1a1918;
+  --muted: #eeece9;
+  --muted-foreground: #6b6762;
+  --accent: #e9e7e3;
+  --accent-foreground: #1a1918;
+  --destructive: #cf222e;
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --info: #6b6762;
+  --border: rgba(26, 25, 24, 0.09);
+  --input: rgba(26, 25, 24, 0.14);
+  --ring: #b35600;
+  --brand: #b35600;
   --brand-foreground: #ffffff;
-  --chart-1: #b85700;
-  --chart-2: #008fb3;
-  --chart-3: #008a6b;
-  --chart-4: #b26a00;
-  --chart-5: #5b6470;
-  --sidebar: #e7ebf1;
-  --sidebar-foreground: #0b0f14;
-  --sidebar-primary: #b85700;
+  --chart-1: #b35600;
+  --chart-2: #6b6762;
+  --chart-3: #1a7f37;
+  --chart-4: #9a6700;
+  --chart-5: #a8a39c;
+  --sidebar: #f2f1ef;
+  --sidebar-foreground: #1a1918;
+  --sidebar-primary: #b35600;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(224, 120, 0, 0.1);
-  --sidebar-accent-foreground: #0b0f14;
-  --sidebar-border: rgba(11, 15, 20, 0.08);
-  --sidebar-ring: #b85700;
-  --glass: rgba(255, 255, 255, 0.58);
-  --glass-strong: rgba(255, 255, 255, 0.88);
-  --glass-border: color-mix(in oklab, var(--foreground) 12%, var(--card));
-  --glass-highlight: rgba(255, 255, 255, 0.72);
+  --sidebar-accent: #e9e7e3;
+  --sidebar-accent-foreground: #1a1918;
+  --sidebar-border: rgba(26, 25, 24, 0.09);
+  --sidebar-ring: #b35600;
+  --glass: var(--card);
+  --glass-strong: var(--popover);
+  --glass-border: var(--border);
+  --glass-highlight: transparent;
 }
-
-/* The login is always the dark OCTANE surface, even when the app is in light mode. */
-
 
 @layer base {
   * {
@@ -156,41 +157,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    background-image:
-      radial-gradient(
-        900px 540px at 50% -14%,
-        color-mix(in oklab, var(--brand) 8%, transparent),
-        transparent 72%
-      ),
-      radial-gradient(
-        760px 520px at 100% 108%,
-        color-mix(in oklab, var(--info) 5%, transparent),
-        transparent 72%
-      );
-    background-repeat: no-repeat;
     text-rendering: optimizeLegibility;
-    font-feature-settings: "ss01", "cv11", "tnum";
-  }
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.018;
-    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  }
-  .light body::before {
-    opacity: 0.008;
-  }
-  @media (max-width: 640px) {
-    body::before {
-      display: none;
-    }
-  }
-  h1,
-  h2 {
-    @apply font-heading;
+    /* Inter-only stylistic sets removed; keep tabular numbers for UI counters. */
+    font-feature-settings: "tnum";
   }
   ::selection {
     background: var(--brand);
@@ -250,36 +219,56 @@
     animation: shimmer 1.8s linear infinite;
   }
 
-  /* OCTANE liquid-glass surfaces. Dense content stays on the solid panel;
-     blur is reserved for chrome, menus, dialogs and the composer. */
+  /* Deprecated aliases: flat surfaces, no blur. Call sites migrate in plans
+     015–018; plan 018 removes these names. */
   .glass-panel {
-    background: color-mix(in oklab, var(--card) 78%, transparent);
-    border: 1px solid var(--glass-border);
-    box-shadow:
-      inset 0 1px 0 var(--glass-highlight),
-      0 24px 60px -42px rgba(0, 0, 0, 0.9);
+    background: var(--card);
+    border: 1px solid var(--border);
   }
   .glass-inset {
-    background: color-mix(in oklab, var(--card) 44%, transparent);
-    border: 1px solid color-mix(in oklab, var(--foreground) 8%, transparent);
+    background: var(--muted);
+    border: 1px solid var(--border);
   }
   .glass-bar {
-    background: color-mix(in oklab, var(--background) 72%, transparent);
-    border-color: var(--glass-border);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
-    backdrop-filter: blur(18px) saturate(140%);
+    background: var(--background);
+    border-color: var(--border);
   }
   .glass-float {
-    background: color-mix(in oklab, var(--popover) 88%, transparent);
-    border: 1px solid var(--glass-border);
-    box-shadow:
-      inset 0 1px 0 var(--glass-highlight),
-      0 30px 80px -30px rgba(0, 0, 0, 0.92);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    backdrop-filter: blur(24px) saturate(160%);
+    background: var(--popover);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
   }
-  .brand-glow {
-    box-shadow: 0 14px 34px -16px color-mix(in oklab, var(--brand) 55%, transparent);
+
+  /* OCTANE surfaces (plan 014 design contract). Separation comes from the
+     card/background step and hairlines; only floating layers get a shadow. */
+  .surface-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+  .surface-float {
+    background: var(--popover);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+  }
+  /* Display face: page titles and the empty-state question only. */
+  .headline {
+    font-family: var(--font-display), ui-sans-serif, sans-serif;
+    font-style: italic;
+    font-weight: 600;
+    font-stretch: 112%;
+    letter-spacing: -0.005em;
+  }
+  /* The logo's 45° cut. Primary action only. Clips rings: pair with an inset focus style. */
+  .chamfer {
+    clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
+  }
+  .status-square {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
   }
 }
 
@@ -421,7 +410,7 @@
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.85em;
   padding: 0.16em 0.38em;
-  border-radius: 5px;
+  border-radius: 4px;
   border: 1px solid var(--border);
   background: color-mix(in oklch, var(--muted) 70%, transparent);
 }
@@ -429,7 +418,7 @@
   margin: 0.85em 0;
   padding: 0;
   overflow: hidden;
-  border-radius: calc(var(--radius) + 2px);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: color-mix(in oklch, var(--muted) 55%, var(--background));
 }
@@ -545,23 +534,13 @@
   }
 }
 
-@media (prefers-reduced-transparency: reduce) {
-  .glass-bar,
-  .glass-float {
-    background: var(--background);
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-  .glass-panel {
-    background: var(--card);
-  }
-}
-
 @media (prefers-contrast: more) {
   .glass-panel,
   .glass-inset,
   .glass-bar,
-  .glass-float {
+  .glass-float,
+  .surface-panel,
+  .surface-float {
     border-color: color-mix(in oklab, var(--foreground) 24%, transparent);
   }
 }

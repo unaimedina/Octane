@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Sign in" };
 
-export const viewport: Viewport = { themeColor: "#0b0f14" };
+export const viewport: Viewport = { themeColor: "#1a1918" };
 
 export default async function LoginPage({
   searchParams,
