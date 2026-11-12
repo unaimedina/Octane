@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useAppData } from "@/components/app-data";
 import { Button } from "@/components/ui/button";
 
@@ -30,16 +30,14 @@ export function UsageCard() {
       : null;
 
   return (
-    <div className="glass-panel mb-5 rounded-xl px-3.5 py-3">
+    <div className="surface-panel mb-5 px-3.5 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
-            <Activity className="size-3 text-brand" /> Usage · {usage.monthLabel}
-          </div>
+          <div className="text-xs text-muted-foreground">Usage · {usage.monthLabel}</div>
           {usage.hasUsage ? (
             <>
               <div className="mt-1 flex flex-wrap items-baseline gap-2">
-                <span className="text-2xl font-semibold tracking-tight">
+                <span className="font-mono text-xl tabular-nums">
                   {monthlyPercent !== null
                     ? formatPercent(monthlyPercent)
                     : money(usage.totalCost)}
@@ -50,14 +48,14 @@ export function UsageCard() {
                   {formatTokens(usage.totalTokens)} tokens
                 </span>
               </div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground/60">
+              <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
                 {usage.monthlyBudget
                   ? `${money(usage.totalCost)} of ${money(usage.monthlyBudget)} · on pace for ${formatPercent(usage.forecast.percent ?? 0)}`
                   : `${money(usage.forecast.cost)} projected by month end`}
               </div>
             </>
           ) : (
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               No usage recorded this month yet.
             </p>
           )}
@@ -69,9 +67,9 @@ export function UsageCard() {
         </Button>
       </div>
       {usage.hasUsage && usage.monthlyBudget ? (
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="mt-3 h-1 overflow-hidden bg-muted">
           <div
-            className="h-full rounded-full bg-brand transition-[width] duration-500"
+            className="h-full bg-brand transition-[width] duration-500"
             style={{
               width: `${Math.min(100, Math.max(1, monthlyPercent ?? 0))}%`,
             }}

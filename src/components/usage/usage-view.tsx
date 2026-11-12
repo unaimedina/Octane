@@ -2,24 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import {
-  Activity,
-  ExternalLink,
-  Gauge,
-  RefreshCw,
-  Sparkles,
-  Wallet,
-} from "lucide-react";
+import { ExternalLink, Gauge, RefreshCw } from "lucide-react";
 import { useAppData } from "@/components/app-data";
 import { UsageChart } from "@/components/usage/usage-chart";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { UsageLimit } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 
@@ -53,29 +39,35 @@ function LimitRow({ limit }: { limit: UsageLimit }) {
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
         <div className="min-w-0">
-          <span className="text-[11px] font-medium">{limit.label}</span>
-          <span className="ml-1.5 text-[10px] text-muted-foreground">
-            {limit.hint}
-          </span>
+          <span className="text-xs">{limit.label}</span>
+          <span className="ml-1.5 text-[11px] text-muted-foreground">{limit.hint}</span>
         </div>
-        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-          {limit.budget
-            ? `${formatPercent(limit.percent)} used`
-            : money(limit.used)}
+        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+          {limit.budget ? `${formatPercent(limit.percent)} used` : money(limit.used)}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+      <div className="h-1 overflow-hidden bg-muted">
         <div
-          className={cn("h-full rounded-full transition-[width]", limitTone(limit.percent))}
+          className={cn("h-full transition-[width]", limitTone(limit.percent))}
           style={{
             width: `${Math.min(100, Math.max(1, limit.percent ?? (limit.used > 0 ? 2 : 0)))}%`,
           }}
         />
       </div>
-      <div className="flex justify-between font-mono text-[9px] text-muted-foreground/50">
+      <div className="flex justify-between font-mono text-[10px] text-muted-foreground">
         <span>{money(limit.used)}</span>
         <span>{limit.budget ? money(limit.budget) : "no budget set"}</span>
       </div>
+    </div>
+  );
+}
+
+function Readout({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 font-mono text-xl tabular-nums text-foreground">{value}</div>
+      {sub ? <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{sub}</div> : null}
     </div>
   );
 }
@@ -89,6 +81,8 @@ export function UsageView() {
     usage.monthlyBudget && usage.monthlyBudget > 0
       ? (usage.totalCost / usage.monthlyBudget) * 100
       : null;
+  // Orange marks only the most used model.
+  const leaderPercent = Math.max(0, ...usage.models.map((model) => model.percent));
 
   function refresh() {
     setRefreshing(true);
@@ -98,71 +92,73 @@ export function UsageView() {
 
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl px-5 py-8">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-              <Activity className="size-5 text-brand" /> Usage
-            </h1>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <h1 className="headline text-[26px] leading-tight">Usage</h1>
+            <p className="mt-1 text-[13px] text-muted-foreground">
               Estimated from sessions in this web client · {usage.monthLabel}
             </p>
           </div>
           <Button
-            variant="outline"
-            size="sm"
-            className="h-8"
+            variant="ghost"
+            size="icon-sm"
             onClick={refresh}
             disabled={refreshing}
+            aria-label="Refresh usage"
           >
             <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
-            Refresh
           </Button>
         </div>
 
         {!usage.hasUsage ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-2 py-14 text-center">
-              <Gauge className="size-7 text-muted-foreground/40" />
-              <p className="text-sm font-medium">No usage recorded this month</p>
-              <p className="max-w-sm text-[11px] leading-relaxed text-muted-foreground">
-                Start a session and the local usage estimate will appear here.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center gap-2 border-t border-border py-14 text-center">
+            <Gauge className="size-5 text-muted-foreground/60" aria-hidden="true" />
+            <p className="text-[13px] font-medium">No usage recorded this month</p>
+            <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+              Start a session and the local usage estimate will appear here.
+            </p>
+          </div>
         ) : (
           <>
-            <div className="glass-panel mb-4 rounded-xl p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="text-3xl font-semibold tracking-tight">
-                    {monthlyPercent !== null
-                      ? formatPercent(monthlyPercent)
-                      : money(usage.totalCost)}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {usage.monthLabel} · {usage.totalSessions} session
-                    {usage.totalSessions === 1 ? "" : "s"} ·{" "}
-                    {formatTokens(usage.totalTokens)} tokens
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground/70">
-                    {usage.monthlyBudget
-                      ? `On pace for ${formatPercent(usage.forecast.percent)} · ${money(usage.forecast.cost)} projected`
-                      : `${money(usage.forecast.cost)} projected by the end of the month`}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] text-muted-foreground">
+            <div className="grid grid-cols-2 divide-border border-y border-border sm:grid-cols-4 sm:divide-x [&>*:nth-child(even)]:border-l [&>*:nth-child(even)]:border-border sm:[&>*:nth-child(even)]:border-l-0 [&>*:nth-child(-n+2)]:border-b sm:[&>*:nth-child(-n+2)]:border-b-0">
+              <Readout
+                label="Estimated cost"
+                value={money(usage.totalCost)}
+                sub={
+                  usage.monthlyBudget
+                    ? `${formatPercent(monthlyPercent)} of ${money(usage.monthlyBudget)}`
+                    : undefined
+                }
+              />
+              <Readout label="Input tokens" value={formatTokens(usage.inputTokens)} />
+              <Readout label="Output tokens" value={formatTokens(usage.outputTokens)} />
+              <Readout label="Sessions" value={String(usage.totalSessions)} />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {usage.monthlyBudget
+                ? `On pace for ${formatPercent(usage.forecast.percent)} · ${money(usage.forecast.cost)} projected`
+                : `${money(usage.forecast.cost)} projected by the end of the month`}
+            </p>
+
+            <section className="mt-6 border-t border-border py-6">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+                <h2 className="text-[13px] font-medium">This month</h2>
+                <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1.5">
-                    <span className="h-0.5 w-4 rounded-full bg-brand" /> Usage
+                    <span className="h-0.5 w-4 bg-brand" aria-hidden="true" /> Usage
                   </span>
                   {usage.monthlyBudget ? (
                     <>
                       <span className="flex items-center gap-1.5">
-                        <span className="h-0.5 w-4 rounded-full border-t border-dashed border-info" />
+                        <span
+                          className="w-4 border-t border-dashed border-muted-foreground"
+                          aria-hidden="true"
+                        />
                         Forecast
                       </span>
                       <span className="flex items-center gap-1.5">
-                        <span className="size-1.5 rounded-full bg-warning/70" />
+                        <span className="status-square bg-warning" aria-hidden="true" />
                         Monthly limit
                       </span>
                     </>
@@ -173,117 +169,79 @@ export function UsageView() {
                 days={usage.days}
                 budget={usage.monthlyBudget}
                 forecastCost={usage.forecast.cost}
-                className="mt-3"
               />
-            </div>
+            </section>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Gauge className="size-4" /> Limits
-                  </CardTitle>
-                  <CardDescription>Rolling estimates from this client.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            <div className="grid gap-x-10 border-t border-border md:grid-cols-2">
+              <section className="py-6">
+                <h2 className="text-[13px] font-medium">Most used this month</h2>
+                {usage.models.length === 0 ? (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    The server did not report a model for these sessions.
+                  </p>
+                ) : (
+                  <ul className="mt-3 space-y-3">
+                    {usage.models.map((model) => (
+                      <li key={model.id}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="min-w-0 truncate font-mono text-[11px]">
+                            {model.id === "unknown" ? "Unknown model" : model.id}
+                          </span>
+                          <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                            {formatTokens(model.tokens)} tokens · {formatPercent(model.percent)}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-0.5 bg-muted">
+                          <div
+                            className={cn(
+                              "h-full",
+                              model.percent === leaderPercent
+                                ? "bg-brand"
+                                : "bg-muted-foreground/40",
+                            )}
+                            style={{ width: `${Math.min(100, Math.max(1, model.percent))}%` }}
+                          />
+                        </div>
+                        <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
+                          {model.sessions} session{model.sessions === 1 ? "" : "s"}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section className="border-t border-border py-6 md:border-t-0">
+                <h2 className="text-[13px] font-medium">Limits</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Rolling estimates from this client.
+                </p>
+                <div className="mt-3 space-y-4">
                   {usage.limits.map((limit) => (
                     <LimitRow key={limit.id} limit={limit} />
                   ))}
                   {usage.limits.every((limit) => !limit.budget) ? (
-                    <p className="text-[10px] leading-relaxed text-muted-foreground/70">
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
                       Set <span className="font-mono">USAGE_*_BUDGET_USD</span> in the
                       environment to track limits.
                     </p>
                   ) : null}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Sparkles className="size-4" /> Models
-                  </CardTitle>
-                  <CardDescription>Most used this month.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {usage.models.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      The server did not report a model for these sessions.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2.5">
-                      {usage.models.map((model) => (
-                        <li key={model.id}>
-                          <div className="flex items-baseline justify-between gap-2">
-                            <span className="min-w-0 truncate font-mono text-[11px]">
-                              {model.id === "unknown" ? "Unknown model" : model.id}
-                            </span>
-                            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                              {formatPercent(model.percent)}
-                            </span>
-                          </div>
-                          <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
-                            <div
-                              className="h-full rounded-full bg-brand"
-                              style={{
-                                width: `${Math.min(100, Math.max(1, model.percent))}%`,
-                              }}
-                            />
-                          </div>
-                          <div className="mt-0.5 flex justify-between font-mono text-[9px] text-muted-foreground/50">
-                            <span>{model.sessions} sessions</span>
-                            <span>{formatTokens(model.tokens)} tokens</span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Wallet className="size-4" /> Summary
-                  </CardTitle>
-                  <CardDescription>Billing and totals.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2.5">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Sessions</span>
-                    <span className="font-mono">{usage.totalSessions}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Input tokens</span>
-                    <span className="font-mono">{formatTokens(usage.inputTokens)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Output tokens</span>
-                    <span className="font-mono">{formatTokens(usage.outputTokens)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground">Estimated cost</span>
-                    <span className="font-mono">{money(usage.totalCost)}</span>
-                  </div>
-                  <div className="border-t border-border/60 pt-2.5">
-                    <Button variant="outline" size="sm" className="h-8 w-full" asChild>
-                      <a
-                        href="https://opencode.ai/console"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <ExternalLink className="size-3.5" /> OpenCode Console
-                      </a>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
+              </section>
             </div>
 
-            <p className="mt-4 text-[10px] leading-relaxed text-muted-foreground/60">
+            <p className="border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
               Estimates use the cost/token totals reported for each session. They can
-              differ from your OpenCode Go billing; use the OpenCode Console for exact
-              limits and credits.
+              differ from your OpenCode Go billing; use the{" "}
+              <a
+                href="https://opencode.ai/console"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-sm text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                OpenCode Console <ExternalLink className="size-3" />
+              </a>{" "}
+              for exact limits and credits.
             </p>
           </>
         )}

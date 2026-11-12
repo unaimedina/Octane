@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
-  CalendarDays,
   FolderGit2,
   GitBranch,
   Loader2,
@@ -30,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiJson } from "@/lib/api";
 import { projectSessions } from "@/lib/project-paths";
 import type { GithubStatus, Project, Session } from "@/lib/types";
@@ -113,11 +112,9 @@ export function ProjectDetail({
 
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-semibold tracking-[-0.02em]">
-              {project.name}
-            </h1>
+            <h1 className="headline truncate text-[26px] leading-tight">{project.name}</h1>
             {project.description ? (
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              <p className="mt-1 max-w-2xl text-[13px] text-muted-foreground">
                 {project.description}
               </p>
             ) : null}
@@ -155,8 +152,89 @@ export function ProjectDetail({
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="space-y-4">
+        <Tabs defaultValue="sessions">
+          <TabsList className="mb-4">
+            <TabsTrigger value="sessions" className="gap-1.5 text-[13px]">
+              Sessions
+              <span className="font-mono text-[11px] text-muted-foreground">{related.length}</span>
+            </TabsTrigger>
+            <TabsTrigger value="details" className="text-[13px]">
+              Details
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="sessions">
+            {related.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-center">
+                <FolderGit2 className="size-5 text-muted-foreground/60" aria-hidden="true" />
+                <p className="mt-3 text-xs text-muted-foreground">
+                  No sessions in this folder yet.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-4 gap-1.5"
+                  onClick={() => void startSession()}
+                  disabled={creating}
+                >
+                  <Plus className="size-3.5" /> New chat
+                </Button>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border border-y border-border">
+                {related.map((session) => (
+                  <li key={session.id}>
+                    <Link
+                      href={`/chat/${session.id}`}
+                      className="flex items-center gap-3 px-3 py-2.5 outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    >
+                      <span className="status-square bg-muted-foreground/30" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate text-[13px]">
+                        {session.title || "Untitled session"}
+                      </span>
+                      <span
+                        className="shrink-0 font-mono text-[11px] text-muted-foreground"
+                        suppressHydrationWarning
+                      >
+                        {formatDate(session.time.updated)}
+                      </span>
+                      <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/40" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </TabsContent>
+
+          {/* forceMount keeps an unsaved AGENTS.md draft when switching tabs. */}
+          <TabsContent value="details" forceMount className="data-[state=inactive]:hidden">
+            <section className="border-t border-border py-6 first:border-t-0 first:pt-0">
+              <h2 className="mb-3 text-[13px] font-medium">Repository</h2>
+              <p className="break-all font-mono text-[11px] text-foreground">{project.directory}</p>
+              {project.github ? (
+                <a
+                  href={project.github.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-sm font-mono text-[11px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <GitBranch className="size-3 shrink-0" />
+                  <span className="truncate">{project.github.repo}</span>
+                </a>
+              ) : (
+                <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  No repository linked
+                  <Button variant="ghost" size="xs" onClick={() => setEditing(true)}>
+                    Edit
+                  </Button>
+                </p>
+              )}
+              {!github.configured ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  GitHub is not configured on this deployment.
+                </p>
+              ) : null}
+            </section>
+
             <ProjectAgentsCard
               project={project}
               reloadKey={reloadKey}
@@ -168,119 +246,21 @@ export function ProjectDetail({
               onChanged={() => setReloadKey((key) => key + 1)}
             />
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-sm">Sessions</CardTitle>
-                    <CardDescription className="text-xs">
-                      Conversations running in this project folder.
-                    </CardDescription>
-                  </div>
-                  <span className="font-mono text-[10px] text-muted-foreground/60">
-                    {related.length}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {related.length === 0 ? (
-                  <div className="flex flex-col items-center rounded-[10px] border border-dashed border-border/60 px-4 py-10 text-center">
-                    <FolderGit2 className="mb-2 size-5 text-muted-foreground/60" />
-                    <p className="text-xs text-muted-foreground">
-                      No sessions in this folder yet.
-                    </p>
-                    <Button
-                      size="sm"
-                      className="mt-3 gap-1.5"
-                      onClick={() => void startSession()}
-                      disabled={creating}
-                    >
-                      <Plus className="size-3.5" /> New chat
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border/50 overflow-hidden rounded-[10px] border border-border/60">
-                    {related.map((session) => (
-                      <Link
-                        key={session.id}
-                        href={`/chat/${session.id}`}
-                        className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40"
-                      >
-                        <span className="size-1.5 shrink-0 rounded-full bg-muted-foreground/30" />
-                        <span className="min-w-0 flex-1 truncate text-[13px]">
-                          {session.title || "Untitled session"}
-                        </span>
-                        <span
-                          className="shrink-0 font-mono text-[10px] text-muted-foreground/60"
-                          suppressHydrationWarning
-                        >
-                          {formatDate(session.time.updated)}
-                        </span>
-                        <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/40" />
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-4">
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="text-sm">Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/70">
-                    Directory
-                  </div>
-                  <div className="mt-1 break-all rounded-[8px] border border-border/50 bg-muted/20 px-2 py-1.5 font-mono text-[10px]">
-                    {project.directory}
-                  </div>
-                </div>
-                <div>
-                  <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/70">
-                    Repository
-                  </div>
-                  {project.github ? (
-                    <a
-                      href={project.github.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-[8px] border border-border/60 px-2 py-1 font-mono text-[10px] transition-colors hover:bg-muted/60"
-                    >
-                      <GitBranch className="size-3 shrink-0" />
-                      <span className="truncate">{project.github.repo}</span>
-                    </a>
-                  ) : (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      No repository linked
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <CalendarDays className="size-3" />
-                  <span suppressHydrationWarning>
-                    Created {formatDate(project.createdAt)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <CalendarDays className="size-3" />
-                  <span suppressHydrationWarning>
-                    Updated {formatDate(project.updatedAt)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {!github.configured ? (
-              <p className="rounded-[10px] border border-dashed border-border/60 px-2.5 py-2 text-[10px] leading-relaxed text-muted-foreground">
-                GitHub is not configured on this deployment.
-              </p>
-            ) : null}
-          </div>
-        </div>
+            <section className="border-t border-border py-6">
+              <h2 className="mb-3 text-[13px] font-medium">Dates</h2>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-xs">
+                <dt className="text-muted-foreground">Created</dt>
+                <dd className="font-mono" suppressHydrationWarning>
+                  {formatDate(project.createdAt)}
+                </dd>
+                <dt className="text-muted-foreground">Updated</dt>
+                <dd className="font-mono" suppressHydrationWarning>
+                  {formatDate(project.updatedAt)}
+                </dd>
+              </dl>
+            </section>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {editing ? (

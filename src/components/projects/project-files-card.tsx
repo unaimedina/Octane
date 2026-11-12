@@ -14,7 +14,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CONTEXT_EXTENSIONS } from "@/lib/agents-block";
 import { ApiError, apiJson } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -120,16 +119,16 @@ export function ProjectFilesCard({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Context files</CardTitle>
-        <CardDescription className="text-xs">
+    <section className="border-t border-border py-6 first:border-t-0 first:pt-0">
+      <div className="mb-3">
+        <h2 className="text-[13px] font-medium">Context files</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">
           Reference material the agent can read: specs, data, notes, images.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+        </p>
+      </div>
+      <div className="space-y-3">
         {unavailable ? (
-          <p className="rounded-[10px] border border-dashed border-border/60 px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-xs leading-relaxed text-muted-foreground">
             {unavailable}
           </p>
         ) : (
@@ -146,8 +145,8 @@ export function ProjectFilesCard({
                 void uploadAll(Array.from(event.dataTransfer.files));
               }}
               className={cn(
-                "flex flex-col items-center gap-2 rounded-[10px] border border-dashed px-4 py-6 text-center transition-colors",
-                dragging ? "border-primary bg-primary/5" : "border-border/60",
+                "flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-6 text-center transition-colors",
+                dragging ? "border-brand bg-brand/5" : "border-border",
               )}
             >
               <Upload className="size-5 text-muted-foreground/60" />
@@ -184,14 +183,14 @@ export function ProjectFilesCard({
                 No context files yet.
               </p>
             ) : (
-              <div className="divide-y divide-border/50 overflow-hidden rounded-[10px] border border-border/60">
+              <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
                 {files.map((file) => (
                   <div key={file.name} className="flex items-center gap-3 px-3 py-2">
                     <FileText className="size-3.5 shrink-0 text-muted-foreground/60" />
                     <span className="min-w-0 flex-1 truncate font-mono text-[11px]">
                       {file.name}
                     </span>
-                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground/60">
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
                       {formatSize(file.size)}
                     </span>
                     <Button
@@ -216,7 +215,7 @@ export function ProjectFilesCard({
               </div>
             )}
 
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
               Files are saved in <code>.octane/context/</code> inside the project
               folder and listed in AGENTS.md so the agent can read them. Add{" "}
               <code>.octane/</code> to .gitignore if you don&apos;t want to commit
@@ -224,7 +223,7 @@ export function ProjectFilesCard({
             </p>
           </>
         )}
-      </CardContent>
+      </div>
 
       <AlertDialog
         open={deleteTarget !== null}
@@ -256,6 +255,6 @@ export function ProjectFilesCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </section>
   );
 }

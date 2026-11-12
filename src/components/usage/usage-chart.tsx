@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import type { UsageDay } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +22,6 @@ export function UsageChart({
   compact?: boolean;
   className?: string;
 }) {
-  const id = React.useId().replace(/:/g, "");
   const width = 720;
   const height = compact ? 64 : 230;
   const padX = compact ? 2 : 10;
@@ -58,9 +56,6 @@ export function UsageChart({
   const line = actualPoints
     .map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`)
     .join(" ");
-  const area = actualPoints.length
-    ? `${line} L${actualPoints.at(-1)!.x},${padTop + plotHeight} L${actualPoints[0].x},${padTop + plotHeight} Z`
-    : "";
   const forecastStart = actualPoints.at(-1);
   const forecastEnd = forecastStart
     ? {
@@ -81,13 +76,6 @@ export function UsageChart({
       role="img"
       aria-label="Usage over the current month"
     >
-      <defs>
-        <linearGradient id={`usage-${id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.24" />
-          <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-
       {!compact
         ? gridLines.map((fraction) => {
             const value = maxValue * fraction;
@@ -100,8 +88,6 @@ export function UsageChart({
                   y1={lineY}
                   y2={lineY}
                   stroke="var(--border)"
-                  strokeDasharray={fraction === 1 ? "4 4" : undefined}
-                  strokeOpacity="0.55"
                 />
                 <text
                   x={padX}
@@ -125,7 +111,6 @@ export function UsageChart({
           y2={y(budget)}
           stroke="var(--warning)"
           strokeDasharray="4 4"
-          strokeOpacity="0.55"
         />
       ) : null}
 
@@ -153,13 +138,12 @@ export function UsageChart({
         </g>
       ) : null}
 
-      {area ? <path d={area} fill={`url(#usage-${id})`} /> : null}
       {line ? (
         <path
           d={line}
           fill="none"
           stroke="var(--brand)"
-          strokeWidth={compact ? 1.5 : 2}
+          strokeWidth={1.5}
           strokeLinecap="round"
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
@@ -171,9 +155,8 @@ export function UsageChart({
           y1={forecastStart.y}
           x2={forecastEnd.x}
           y2={forecastEnd.y}
-          stroke="var(--info)"
+          stroke="var(--muted-foreground)"
           strokeDasharray="5 5"
-          strokeOpacity="0.75"
           strokeWidth="1.5"
           vectorEffect="non-scaling-stroke"
         />
@@ -183,10 +166,23 @@ export function UsageChart({
           cx={forecastStart.x}
           cy={forecastStart.y}
           r={compact ? 2 : 3}
-          fill="var(--info)"
+          fill="var(--muted-foreground)"
           stroke="var(--background)"
           strokeWidth="2"
         />
+      ) : null}
+      {forecastStart && lastActual && !compact ? (
+        // Value at the end of the actual line, so the chart reads without the legend.
+        <text
+          x={forecastStart.x + 8}
+          y={forecastStart.y - 8}
+          textAnchor={forecastStart.x > width * 0.85 ? "end" : "start"}
+          fill="var(--foreground)"
+          fontSize="10"
+          fontFamily="var(--font-mono), ui-monospace, monospace"
+        >
+          ${lastActual.cumulativeCost.toFixed(2)}
+        </text>
       ) : null}
 
       {!compact

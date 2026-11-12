@@ -5,98 +5,93 @@
 
   <defs>
     <pattern id="heroDots" width="28" height="28" patternUnits="userSpaceOnUse">
-      <circle cx="1.5" cy="1.5" r="1" fill="#1a1f26"/>
+      <circle cx="1.5" cy="1.5" r="1" fill="#2A2927"/>
     </pattern>
-    <radialGradient id="heroGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ff8a00" stop-opacity="0.12"/>
-      <stop offset="100%" stop-color="#ff8a00" stop-opacity="0"/>
-    </radialGradient>
   </defs>
 
-  <rect width="1200" height="420" rx="18" fill="#0b0f14"/>
-  <rect width="1200" height="420" rx="18" fill="url(#heroDots)" opacity="0.55"/>
-  <ellipse cx="900" cy="200" rx="320" ry="210" fill="url(#heroGlow)"/>
-  <rect x="0.5" y="0.5" width="1199" height="419" rx="17.5" fill="none" stroke="#242b34"/>
+  <rect width="1200" height="420" rx="10" fill="#1A1918"/>
+  <rect width="1200" height="420" rx="10" fill="url(#heroDots)" opacity="0.55"/>
+  <rect x="0.5" y="0.5" width="1199" height="419" rx="9.5" fill="none" stroke="#2E2D2B"/>
 
   <!-- Brand mark -->
-  <rect x="72" y="66" width="36" height="36" rx="10" fill="#12171e" stroke="#2a323c"/>
+  <rect x="72" y="66" width="36" height="36" rx="10" fill="#232220" stroke="#2E2D2B"/>
   <g transform="translate(80 74) scale(0.7143)">
-    <path d="M14 2.6 23.4 8v12L14 25.4 4.6 20V8z" fill="#ff8a00" stroke="#ff8a00" stroke-width="1.2" stroke-linejoin="round"/>
-    <path d="M9.2 10.2 13 14l-3.8 3.8M15.4 18h4.2" fill="none" stroke="#f8fafc" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M14 2.6 23.4 8v12L14 25.4 4.6 20V8z" fill="#FF8A00" stroke="#FF8A00" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M9.2 10.2 13 14l-3.8 3.8M15.4 18h4.2" fill="none" stroke="#ECEAE6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <text x="120" y="89" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" letter-spacing="2.2" fill="#a1a7b3">SELF-HOSTED · OPENCODE CLIENT</text>
+  <text x="120" y="89" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" letter-spacing="2.2" fill="#8E8A84">SELF-HOSTED · OPENCODE CLIENT</text>
 
   <!-- Wordmark -->
-  <text x="70" y="178" font-family="Inter Tight, Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="84" font-weight="600" letter-spacing="-3" fill="#f8fafc"><tspan fill="#ff8a00">OC</tspan>TANE</text>
+  <text x="70" y="178" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif" font-size="84" font-weight="600" letter-spacing="-3" fill="#ECEAE6"><tspan fill="#FF8A00">OC</tspan>TANE</text>
 
   <!-- Value -->
-  <text x="72" y="224" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="24" fill="#a1a7b3">Your OpenCode server, in the browser.</text>
-  <text x="72" y="254" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="18" fill="#717a87">Self-hosted, authenticated, and built for daily work.</text>
+  <text x="72" y="224" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif" font-size="24" fill="#8E8A84">Your OpenCode server, in the browser.</text>
+  <text x="72" y="254" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif" font-size="18" fill="#8E8A84">Self-hosted, authenticated, and built for daily work.</text>
 
   <!-- Stack chips -->
-  <rect x="72" y="282" width="120" height="32" rx="8" fill="#151a21" stroke="#2a323c"/>
-  <text x="86" y="303" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#a1a7b3">Next.js 16</text>
+  <rect x="72" y="282" width="120" height="32" rx="8" fill="#232220" stroke="#2E2D2B"/>
+  <text x="86" y="303" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#8E8A84">Next.js 16</text>
 
-  <rect x="202" y="282" width="176" height="32" rx="8" fill="#151a21" stroke="#2a323c"/>
-  <text x="216" y="303" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#a1a7b3">OpenCode v1 + v2</text>
+  <rect x="202" y="282" width="176" height="32" rx="8" fill="#232220" stroke="#2E2D2B"/>
+  <text x="216" y="303" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#8E8A84">OpenCode v1 + v2</text>
 
-  <rect x="388" y="282" width="86" height="32" rx="8" fill="#151a21" stroke="#2a323c"/>
-  <text x="402" y="303" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#a1a7b3">Docker</text>
+  <rect x="388" y="282" width="86" height="32" rx="8" fill="#232220" stroke="#2E2D2B"/>
+  <text x="402" y="303" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#8E8A84">Docker</text>
 
   <!-- Terminal line -->
-  <line x1="72" y1="344" x2="596" y2="344" stroke="#242b34"/>
-  <text x="72" y="378" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="700" fill="#ff8a00">$</text>
-  <text x="92" y="378" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#a1a7b3">docker compose up -d --build</text>
-  <rect x="374" y="364" width="8" height="16" rx="1" fill="#ff8a00" opacity="0.85"/>
+  <line x1="72" y1="344" x2="596" y2="344" stroke="#2E2D2B"/>
+  <text x="72" y="378" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="700" fill="#FF8A00">$</text>
+  <text x="92" y="378" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#8E8A84">docker compose up -d --build</text>
+  <rect x="374" y="364" width="8" height="16" rx="1" fill="#FF8A00" opacity="0.85"/>
 
   <!-- Session window -->
-  <rect x="648" y="50" width="480" height="320" rx="12" fill="#151a21" stroke="#2a323c"/>
-  <line x1="648" y1="88" x2="1128" y2="88" stroke="#242b34"/>
+  <rect x="648" y="50" width="480" height="320" rx="10" fill="#232220" stroke="#2E2D2B"/>
+  <line x1="648" y1="88" x2="1128" y2="88" stroke="#2E2D2B"/>
 
-  <circle cx="670" cy="69" r="3.5" fill="#3a424d"/>
-  <circle cx="686" cy="69" r="3.5" fill="#3a424d"/>
-  <circle cx="702" cy="69" r="3.5" fill="#3a424d"/>
-  <text x="726" y="74" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#ff8a00">&gt;_</text>
-  <text x="754" y="74" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#717a87">session</text>
-  <circle cx="1062" cy="69" r="3" fill="#00d6a0"/>
-  <text x="1072" y="73" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#00d6a0">live</text>
+  <circle cx="670" cy="69" r="3.5" fill="#3A3936"/>
+  <circle cx="686" cy="69" r="3.5" fill="#3A3936"/>
+  <circle cx="702" cy="69" r="3.5" fill="#3A3936"/>
+  <text x="726" y="74" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="700" fill="#FF8A00">&gt;_</text>
+  <text x="754" y="74" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#8E8A84">session</text>
+  <rect x="1058" y="65" width="8" height="8" rx="2" fill="#3FB950"/>
+  <text x="1072" y="73" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#3FB950">live</text>
 
   <!-- Icon rail -->
-  <line x1="700" y1="88" x2="700" y2="370" stroke="#242b34"/>
-  <rect x="664" y="104" width="28" height="28" rx="8" fill="#1f262f" stroke="#2a323c"/>
-  <g transform="translate(670 110)" fill="none" stroke="#ff8a00" stroke-width="1.5" stroke-linejoin="round">
+  <line x1="700" y1="88" x2="700" y2="370" stroke="#2E2D2B"/>
+  <rect x="664" y="104" width="28" height="28" rx="8" fill="#2C2B29" stroke="#2E2D2B"/>
+  <g transform="translate(670 110)" fill="none" stroke="#FF8A00" stroke-width="1.5" stroke-linejoin="round">
     <path d="M2 3.5h12v8H8l-3.5 3v-3H2z"/>
   </g>
-  <g transform="translate(670 144)" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linejoin="round">
+  <g transform="translate(670 144)" fill="none" stroke="#6B6762" stroke-width="1.5" stroke-linejoin="round">
     <path d="M2 4h4l1.5 2H14v7H2z"/>
   </g>
-  <g transform="translate(670 178)" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round">
+  <g transform="translate(670 178)" fill="none" stroke="#6B6762" stroke-width="1.5" stroke-linecap="round">
     <path d="M3 5h10M3 11h10"/>
     <circle cx="6" cy="5" r="1.6"/>
     <circle cx="10" cy="11" r="1.6"/>
   </g>
 
   <!-- Conversation -->
-  <text x="718" y="120" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" letter-spacing="1.5" fill="#717a87">YOU</text>
-  <text x="718" y="146" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="18" fill="#f8fafc">Add rate limiting to login</text>
+  <text x="718" y="120" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" letter-spacing="1.5" fill="#8E8A84">YOU</text>
+  <text x="718" y="146" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif" font-size="18" fill="#ECEAE6">Add rate limiting to login</text>
 
-  <line x1="718" y1="166" x2="718" y2="206" stroke="#ff8a00" stroke-width="2" stroke-linecap="round"/>
-  <text x="732" y="180" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="17" fill="#d6dce4">I'll add a per-IP limiter</text>
-  <text x="732" y="202" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="17" fill="#d6dce4">and wire it into the handler.</text>
+  <line x1="718" y1="166" x2="718" y2="206" stroke="#FF8A00" stroke-width="2" stroke-linecap="round"/>
+  <text x="732" y="180" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif" font-size="17" fill="#D6D3CE">I'll add a per-IP limiter</text>
+  <text x="732" y="202" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif" font-size="17" fill="#D6D3CE">and wire it into the handler.</text>
 
   <!-- Tool call -->
-  <rect x="718" y="216" width="394" height="88" rx="9" fill="#0f141a" stroke="#2a323c"/>
-  <text x="734" y="240" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#ff8a00">edit</text>
-  <text x="772" y="240" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#f8fafc">src/lib/auth.ts</text>
-  <text x="1032" y="240" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#00d6a0">+18</text>
-  <text x="1068" y="240" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#ff5364">−2</text>
-  <line x1="718" y1="250" x2="1112" y2="250" stroke="#242b34"/>
-  <text x="734" y="272" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#ff7a88">-  if (!ip) return next();</text>
-  <text x="734" y="290" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#5ee3bf">+  if (limited(ip)) return 429;</text>
+  <rect x="718" y="216" width="394" height="88" rx="9" fill="#1F1E1C" stroke="#2E2D2B"/>
+  <text x="734" y="240" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#FF8A00">edit</text>
+  <text x="772" y="240" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#ECEAE6">src/lib/auth.ts</text>
+  <text x="1032" y="240" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#3FB950">+18</text>
+  <text x="1068" y="240" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#E5534B">−2</text>
+  <line x1="718" y1="250" x2="1112" y2="250" stroke="#2E2D2B"/>
+  <text x="734" y="272" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#F47067">-  if (!ip) return next();</text>
+  <text x="734" y="290" font-family="IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#56D364">+  if (limited(ip)) return 429;</text>
 
   <!-- Composer -->
-  <rect x="718" y="318" width="394" height="36" rx="9" fill="#0f141a" stroke="#2a323c"/>
-  <text x="732" y="341" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="15" fill="#717a87">Ask OpenCode…</text>
-  <rect x="1076" y="324" width="24" height="24" rx="7" fill="#ff8a00"/>
-  <path d="M1083 336h10M1089 332l4 4-4 4" fill="none" stroke="#0b0f14" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="718" y="318" width="394" height="36" rx="9" fill="#1F1E1C" stroke="#2E2D2B"/>
+  <text x="732" y="341" font-family="IBM Plex Sans, ui-sans-serif, system-ui, sans-serif" font-size="15" fill="#8E8A84">Ask OpenCode…</text>
+  <rect x="1076" y="324" width="24" height="24" rx="7" fill="#FF8A00"/>
+  <path d="M1083 336h10M1089 332l4 4-4 4" fill="none" stroke="#1A1918" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
