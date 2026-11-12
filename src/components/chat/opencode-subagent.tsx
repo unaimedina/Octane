@@ -5,6 +5,7 @@ import { Bot, ChevronRight, CircleAlert, Loader2 } from "lucide-react";
 import { apiJson } from "@/lib/api";
 import { SubagentStepRow } from "@/components/chat/subagent-part";
 import { Badge } from "@/components/ui/badge";
+import { describeTool, sentenceText } from "@/lib/tool-activity";
 import type { MessageWithParts, Session, SubagentStep, ToolPart } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -15,26 +16,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 function str(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
-}
-
-function toolSummary(part: ToolPart): string {
-  const input = asRecord(part.state.input);
-  for (const key of [
-    "description",
-    "command",
-    "file_path",
-    "path",
-    "pattern",
-    "query",
-    "url",
-    "prompt",
-  ]) {
-    const value = str(input[key]);
-    if (value.trim()) {
-      return value.length > 160 ? `${value.slice(0, 157)}…` : value;
-    }
-  }
-  return part.tool;
 }
 
 export function toSteps(messages: MessageWithParts[]): SubagentStep[] {
@@ -57,7 +38,7 @@ export function toSteps(messages: MessageWithParts[]): SubagentStep[] {
           id: part.id,
           kind: "tool",
           tool: part.tool,
-          text: toolSummary(part),
+          text: sentenceText(describeTool(part)),
           status:
             state.status === "error"
               ? "error"
