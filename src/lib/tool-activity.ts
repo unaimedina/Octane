@@ -312,7 +312,7 @@ export function exploreSummary(parts: ToolLike[]): { running: boolean; text: str
 
 export type MessageLike = {
   info: { role: string };
-  parts: Array<{ type: string; text?: string; time?: { start?: number; end?: number } } & Partial<ToolLike>>;
+  parts: Array<{ type: string; text?: string; time?: { start?: number; end?: number; created?: number } } & Partial<ToolLike>>;
 };
 
 export function currentActivity(messages: MessageLike[], root?: string): string | null {
