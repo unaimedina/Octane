@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUp, Check, Folder, FolderOpen, Home, Loader2 } from "lucide-react";
+import { ArrowUp, Check, Folder, Home, Loader2 } from "lucide-react";
 import { useAppData } from "@/components/app-data";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,9 +84,7 @@ export function FolderPicker({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="grid-cols-[minmax(0,1fr)] sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FolderOpen className="size-4" /> Choose root folder
-          </DialogTitle>
+          <DialogTitle className="headline text-[20px]">Choose root folder</DialogTitle>
           <DialogDescription>
             The agent will run sessions inside this directory.
           </DialogDescription>
@@ -162,7 +160,7 @@ export function FolderPicker({
                       <button
                         type="button"
                         onClick={() => void load(segment.path)}
-                        className="max-w-full break-all rounded px-0.5 text-left hover:bg-muted/60 hover:text-foreground"
+                        className="max-w-full break-all rounded-sm px-0.5 text-left hover:bg-accent/60 hover:text-foreground"
                       >
                         {segment.label}
                       </button>
@@ -174,7 +172,7 @@ export function FolderPicker({
             </nav>
           </div>
 
-          <div className="rounded-[10px] border border-border/60 bg-card/30">
+          <div className="rounded-md border border-border bg-card">
             <ScrollArea className="h-64">
               {loading ? (
                 <div className="flex h-64 items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -203,7 +201,7 @@ export function FolderPicker({
                             : resolveAgainst(path, directory.name),
                         )
                       }
-                      className="flex w-full min-w-0 items-center gap-2 rounded-[8px] px-2 py-1.5 text-left font-mono text-[11px] transition-colors hover:bg-muted/60"
+                      className="flex w-full min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-[12px] transition-colors hover:bg-accent/60"
                     >
                       <Folder className="size-3.5 shrink-0 text-muted-foreground" />
                       <span className="truncate">{directory.name}</span>
@@ -228,7 +226,7 @@ export function FolderPicker({
               Use server default
             </Button>
           ) : null}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button

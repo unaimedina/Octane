@@ -2064,7 +2064,8 @@ export function ChatView({
       </div>
 
       {showContextDesktop ? (
-        <aside className="hidden w-[320px] shrink-0 border-l border-border/60 bg-muted/15 xl:block">
+        <aside className="hidden w-[320px] shrink-0 py-3 pr-3 xl:block">
+          <div className="surface-panel h-full overflow-hidden">
           <ContextPanel
             tasks={tasks}
             diff={diff}
@@ -2090,6 +2091,7 @@ export function ChatView({
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
+          </div>
         </aside>
       ) : null}
 

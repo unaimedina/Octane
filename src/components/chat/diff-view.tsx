@@ -120,7 +120,7 @@ export const DiffView = React.memo(function DiffView({
   const removed = deletions ?? lines.filter((line) => line.type === "del").length;
 
   const body = (
-    <div className="bg-background/30">
+    <div>
       {lines.length === 0 ? (
         <div className="px-3 py-4 text-xs text-muted-foreground">No changes.</div>
       ) : (
@@ -135,21 +135,21 @@ export const DiffView = React.memo(function DiffView({
   );
 
   const header = hideHeader ? null : (
-    <div className="flex min-w-0 items-center gap-2 border-b border-border/60 px-3 py-2">
+    <div className="flex min-w-0 items-center gap-2 border-b border-border px-3 py-2">
       <FileCode2 className="size-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{file ?? "diff"}</span>
-      <span className="shrink-0 font-mono text-[10px] text-success">
+      <span className="min-w-0 flex-1 truncate font-mono text-[12px]">{file ?? "diff"}</span>
+      <span className="shrink-0 font-mono text-[11px] text-success">
         +{added}
       </span>
-      <span className="shrink-0 font-mono text-[10px] text-destructive">
-        -{removed}
+      <span className="shrink-0 font-mono text-[11px] text-destructive">
+        −{removed}
       </span>
     </div>
   );
 
   if (collapsible) {
     return (
-      <details className={cn("overflow-hidden rounded-[10px] border border-border/60", className)}>
+      <details className={cn("overflow-hidden rounded-md border border-border", className)}>
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
           {header}
         </summary>
@@ -159,7 +159,7 @@ export const DiffView = React.memo(function DiffView({
   }
 
   return (
-    <div className={cn("overflow-hidden rounded-[10px] border border-border/60", className)}>
+    <div className={cn("overflow-hidden rounded-md border border-border", className)}>
       {header}
       {body}
     </div>
