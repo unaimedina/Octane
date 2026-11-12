@@ -2,6 +2,7 @@ import { AppDataProvider } from "@/components/app-data";
 import { AppShell } from "@/components/app-shell";
 import { requireSession } from "@/lib/auth";
 import { harnessLabel } from "@/lib/harness";
+import { listProjects } from "@/lib/projects";
 import { buildUsageSummary, parseBudget } from "@/lib/usage";
 import {
   getAgents,
@@ -33,6 +34,7 @@ export default async function WorkspaceLayout({
     skills,
     statuses,
     hiddenSessionIds,
+    projects,
   ] = await Promise.all([
     getSessions(),
     getPathInfo(),
@@ -42,6 +44,8 @@ export default async function WorkspaceLayout({
     getSkills(),
     getSessionStatuses(),
     getHiddenSessionIds(session.subject),
+    // A projects-store failure must never block the workspace.
+    listProjects(session.subject).catch(() => []),
   ]);
   const hiddenSet = new Set(hiddenSessionIds);
 
@@ -54,6 +58,7 @@ export default async function WorkspaceLayout({
   return (
     <AppDataProvider
       initialSessions={sessions.filter((item) => !hiddenSet.has(item.id))}
+      initialProjects={projects}
       initialModels={providers.models}
       initialDefaultModel={providers.defaultModel}
       initialAgents={agents}

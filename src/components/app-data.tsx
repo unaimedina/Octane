@@ -12,6 +12,7 @@ import type {
   ModelOption,
   Path,
   Permission,
+  Project,
   Session,
   SessionStatus,
   Skill,
@@ -23,6 +24,8 @@ import { playSound, unlockAudio } from "@/lib/sounds";
 
 type AppDataValue = {
   sessions: Session[];
+  /** Projects of the signed-in user, for grouping sessions in the sidebar. */
+  projects: Project[];
   statuses: Record<string, SessionStatus>;
   models: ModelOption[];
   defaultModel: { providerID: string; modelID: string } | null;
@@ -35,6 +38,8 @@ type AppDataValue = {
   harness: HarnessId;
   harnessLabel: string;
   connected: boolean;
+  /** ms timestamp when every live stream went down; null while connected. */
+  streamDownSince: number | null;
   pendingPermissions: Permission[];
   pendingQuestions: QuestionRequest[];
   replyQuestion: (request: QuestionRequest, answers: string[][]) => Promise<void>;
@@ -44,6 +49,7 @@ type AppDataValue = {
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   refreshSessions: () => Promise<void>;
+  refreshProjects: () => Promise<void>;
   /** Hide sessions (e.g. task workers) from the session lists. */
   hideSessions: (ids: string[]) => void;
   respondPermission: (permission: Permission, response: "once" | "always" | "reject") => Promise<void>;
@@ -80,6 +86,7 @@ function errorText(error: unknown): string {
 
 export function AppDataProvider({
   initialSessions,
+  initialProjects,
   initialModels,
   initialDefaultModel,
   initialAgents,
@@ -95,6 +102,7 @@ export function AppDataProvider({
   children,
 }: {
   initialSessions: Session[];
+  initialProjects: Project[];
   initialModels: ModelOption[];
   initialDefaultModel: { providerID: string; modelID: string } | null;
   initialAgents: Agent[];
@@ -114,10 +122,12 @@ export function AppDataProvider({
   // A ref, so learning about new hidden sessions never reconnects the event streams.
   const hiddenRef = React.useRef(new Set(hiddenSessionIds));
   const [sessions, setSessions] = React.useState(() => sortSessions(initialSessions));
+  const [projects, setProjects] = React.useState(initialProjects);
   const [statuses, setStatuses] = React.useState(initialStatuses);
   const [pendingPermissions, setPendingPermissions] = React.useState<Permission[]>([]);
   const [pendingQuestions, setPendingQuestions] = React.useState<QuestionRequest[]>([]);
   const [connected, setConnected] = React.useState(false);
+  const [streamDownSince, setStreamDownSince] = React.useState<number | null>(null);
   const handlers = React.useRef(new Set<(event: Event) => void>());
   const statusRef = React.useRef<Record<string, SessionStatus>>(initialStatuses);
   const sessionsRef = React.useRef(sessions);
@@ -162,11 +172,35 @@ export function AppDataProvider({
     }
   }, []);
 
+  const refreshProjects = React.useCallback(async () => {
+    try {
+      const data = await apiJson<{ projects: Project[] }>("/projects");
+      setProjects(data.projects);
+    } catch {
+      // Keep the last known projects; grouping falls back gracefully.
+    }
+  }, []);
+
+  // Projects are created/renamed/deleted on /projects; refetch on navigation
+  // so the sidebar groups stay current without coupling to those pages.
+  const lastPathRef = React.useRef(pathname);
+  React.useEffect(() => {
+    if (lastPathRef.current === pathname) return;
+    lastPathRef.current = pathname;
+    void refreshProjects();
+  }, [pathname, refreshProjects]);
+
   React.useEffect(() => {
     const sources: EventSource[] = [];
     let closed = false;
     let openCount = 0;
     let lastAuthCheck = 0;
+    // A stream answered with an HTTP error (e.g. OpenCode down) is closed for
+    // good by the browser; reopen it ourselves with a growing delay.
+    const RETRY_MIN_MS = 2_000;
+    const RETRY_MAX_MS = 30_000;
+    let retryDelay = RETRY_MIN_MS;
+    let retryTimer: number | undefined;
 
     const unlock = () => unlockAudio();
     window.addEventListener("pointerdown", unlock);
@@ -270,14 +304,29 @@ export function AppDataProvider({
       source.onopen = () => {
         if (closed) return;
         openCount += 1;
+        retryDelay = RETRY_MIN_MS;
         setConnected(true);
+        setStreamDownSince(null);
         void refreshSessions();
+        void refreshProjects();
       };
 
       source.onerror = () => {
         if (closed) return;
         openCount = Math.max(0, openCount - 1);
-        if (openCount === 0) setConnected(false);
+        if (openCount === 0) {
+          setConnected(false);
+          setStreamDownSince((current) => current ?? Date.now());
+        }
+        if (source.readyState === EventSource.CLOSED) {
+          const index = sources.indexOf(source);
+          if (index !== -1) sources.splice(index, 1);
+          window.clearTimeout(retryTimer);
+          retryTimer = window.setTimeout(() => {
+            if (!closed) connect();
+          }, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
+        }
         // EventSource reconnects forever on an expired cookie; detect that and
         // send the user back to the login screen instead of hanging silently.
         const now = Date.now();
@@ -313,18 +362,21 @@ export function AppDataProvider({
     void fetch("/api/auth/session", { cache: "no-store" }).catch(() => undefined);
 
     const onFocus = () => {
-      if (document.visibilityState === "visible") void refreshSessions();
+      if (document.visibilityState !== "visible") return;
+      void refreshSessions();
+      void refreshProjects();
     };
     window.addEventListener("focus", onFocus);
 
     return () => {
       closed = true;
+      window.clearTimeout(retryTimer);
       for (const source of sources) source.close();
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
     };
-  }, [refreshSessions]);
+  }, [refreshSessions, refreshProjects]);
 
   const createSession = React.useCallback(
     async (options?: { title?: string; directory?: string }) => {
@@ -417,6 +469,7 @@ export function AppDataProvider({
   const value = React.useMemo<AppDataValue>(
     () => ({
       sessions,
+      projects,
       statuses,
       models: initialModels,
       defaultModel: initialDefaultModel,
@@ -429,6 +482,7 @@ export function AppDataProvider({
       harness,
       harnessLabel,
       connected,
+      streamDownSince,
       pendingPermissions,
       pendingQuestions,
       replyQuestion,
@@ -438,12 +492,14 @@ export function AppDataProvider({
       renameSession,
       deleteSession,
       refreshSessions,
+      refreshProjects,
       hideSessions,
       respondPermission,
       subscribe,
     }),
     [
       sessions,
+      projects,
       statuses,
       initialModels,
       initialDefaultModel,
@@ -456,6 +512,7 @@ export function AppDataProvider({
       harness,
       harnessLabel,
       connected,
+      streamDownSince,
       pendingPermissions,
       pendingQuestions,
       replyQuestion,
@@ -465,6 +522,7 @@ export function AppDataProvider({
       renameSession,
       deleteSession,
       refreshSessions,
+      refreshProjects,
       hideSessions,
       respondPermission,
       subscribe,
