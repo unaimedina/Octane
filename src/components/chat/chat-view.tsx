@@ -2190,8 +2190,26 @@ export function ChatView({
       ) : null}
 
       <Sheet open={contextOpen} onOpenChange={setContextOpen}>
-        <SheetContent side="right" className="w-[340px] p-0 sm:max-w-[360px]">
-          <SheetTitle className="sr-only">Session context</SheetTitle>
+        {/* Own header with a visible close button: the Sheet's default close
+            button sat on top of the panel's "More task actions" button. */}
+        <SheetContent
+          side="right"
+          className="w-[340px] gap-0 p-0 sm:max-w-[360px]"
+          showCloseButton={false}
+        >
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-border pl-3 pr-1.5">
+            <SheetTitle className="text-[13px] font-medium">Session context</SheetTitle>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              onClick={() => setContextOpen(false)}
+              aria-label="Close context panel"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">
           <ContextPanel
             tasks={tasks}
             diff={diff}
@@ -2217,6 +2235,7 @@ export function ChatView({
             onResolveConflicts={hasRepo ? handleResolveConflicts : undefined}
             busy={busy}
           />
+          </div>
         </SheetContent>
       </Sheet>
 
