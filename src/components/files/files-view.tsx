@@ -30,17 +30,21 @@ import { languageForPath } from "@/lib/languages";
 import type { File as FileStatus, FileContent, FileNode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** Git status marker: a square (orange = changed by the agent) plus the letter, so color is never the only signal. */
 function statusBadge(status?: FileStatus) {
   if (!status) return null;
-  if (status.status === "added") {
-    return (
-      <span className="font-mono text-[10px] text-success dark:text-success">A</span>
-    );
-  }
-  if (status.status === "deleted") {
-    return <span className="font-mono text-[10px] text-destructive dark:text-destructive">D</span>;
-  }
-  return <span className="font-mono text-[10px] text-warning dark:text-warning">M</span>;
+  const [tone, letter] =
+    status.status === "added"
+      ? ["bg-success", "A"]
+      : status.status === "deleted"
+        ? ["bg-destructive", "D"]
+        : ["bg-brand", "M"];
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      <span className={cn("status-square", tone)} aria-hidden="true" />
+      <span className="font-mono text-[10px] text-muted-foreground">{letter}</span>
+    </span>
+  );
 }
 
 function patchToUnified(content: FileContent): string | undefined {
@@ -194,15 +198,15 @@ export function FilesView({
     <div className="flex h-full min-h-0">
       <div
         className={cn(
-          "flex w-full min-w-0 flex-col border-r border-border/60 bg-muted/15 sm:w-[300px] sm:shrink-0",
+          "flex w-full min-w-0 flex-col border-r border-border bg-background sm:w-[300px] sm:shrink-0",
           selected && "hidden sm:flex",
         )}
       >
-        <div className="space-y-2.5 border-b border-border/60 p-3">
+        <div className="space-y-2.5 border-b border-border p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <FolderOpen className="size-3.5 text-muted-foreground" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="text-xs font-medium">
                 {tab === "browse" ? "Explorer" : "Changes"}
               </span>
             </div>
@@ -246,12 +250,12 @@ export function FilesView({
             value={tab}
             onValueChange={(value) => setTab(value as "browse" | "changes")}
           >
-            <TabsList className="w-full">
-              <TabsTrigger value="browse" className="flex-1 text-xs">
+            <TabsList>
+              <TabsTrigger value="browse" className="text-xs">
                 Browse
               </TabsTrigger>
               {hasRepo ? (
-                <TabsTrigger value="changes" className="flex-1 gap-1.5 text-xs">
+                <TabsTrigger value="changes" className="gap-1.5 text-xs">
                   Changes
                   {status.length ? (
                     <span className="font-mono text-[10px] text-muted-foreground">
@@ -267,7 +271,7 @@ export function FilesView({
         <ScrollArea className="min-h-0 flex-1">
           {query.trim() ? (
             <div className="p-1.5">
-              <div className="px-2 py-1.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+              <div className="px-2 py-1.5 font-mono text-[10px] text-muted-foreground">
                 {searchResults?.length ?? 0} matches
               </div>
               {searchResults?.length === 0 ? (
@@ -281,7 +285,7 @@ export function FilesView({
                     type="button"
                     onClick={() => void loadFile(path)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-left font-mono text-[11px] transition-colors hover:bg-muted/60",
+                      "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left font-mono text-[11px] transition-colors hover:bg-muted/60",
                       selected === path && "bg-brand/10 text-foreground",
                     )}
                   >
@@ -297,7 +301,7 @@ export function FilesView({
                 <button
                   type="button"
                   onClick={() => void loadDir(parentPath)}
-                  className="mb-0.5 flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                  className="mb-0.5 flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                 >
                   <ArrowLeft className="size-3.5" /> ..
                 </button>
@@ -326,7 +330,7 @@ export function FilesView({
                           : void loadFile(node.path)
                       }
                       className={cn(
-                        "group flex w-full items-center gap-2 rounded-[8px] px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-muted/60",
+                        "group flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-[12px] transition-colors hover:bg-muted/60",
                         selected === node.path && "bg-brand/10 text-foreground",
                         node.ignored && "opacity-45",
                       )}
@@ -361,21 +365,21 @@ export function FilesView({
                     type="button"
                     onClick={() => void loadFile(item.path)}
                     className={cn(
-                      "flex w-full items-start gap-2 rounded-[8px] px-2 py-1.5 text-left transition-colors hover:bg-muted/60",
+                      "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left transition-colors hover:bg-muted/60",
                       selected === item.path && "bg-brand/10 text-foreground",
                     )}
                   >
                     <FileDiff className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-mono text-[11px]">{item.path}</span>
-                      <span className="mt-0.5 flex items-center gap-2 font-mono text-[9px] text-muted-foreground/60">
+                      <span className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
                         <span className="text-success dark:text-success">
                           +{item.added}
                         </span>
                         <span className="text-destructive dark:text-destructive">
                           -{item.removed}
                         </span>
-                        <span className="uppercase">{item.status}</span>
+                        {statusBadge(item)}
                       </span>
                     </span>
                   </button>
@@ -385,15 +389,15 @@ export function FilesView({
           )}
         </ScrollArea>
 
-        <div className="truncate border-t border-border/60 px-3 py-2 font-mono text-[9px] text-muted-foreground/50">
+        <div className="truncate border-t border-border px-3 py-2 font-mono text-[10px] text-muted-foreground">
           {root}
         </div>
       </div>
 
-      <div className={cn("flex min-w-0 flex-1 flex-col", !selected && "hidden sm:flex")}>
+      <div className={cn("flex min-w-0 flex-1 flex-col bg-card", !selected && "hidden sm:flex")}>
         {selected ? (
           <>
-            <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/60 bg-background/20 px-3">
+            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -417,7 +421,7 @@ export function FilesView({
                 </span>
               </div>
 
-              <Badge variant="outline" className="font-mono text-[9px] uppercase">
+              <Badge variant="outline" className="font-mono text-[10px]">
                 {content?.type === "binary" ? "binary" : language?.name ?? "text"}
               </Badge>
               {diff ? (
@@ -427,7 +431,7 @@ export function FilesView({
                       File
                     </TabsTrigger>
                     <TabsTrigger value="diff" className="text-[11px]">
-                      Diff
+                      Changes
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -438,7 +442,8 @@ export function FilesView({
                 size="icon-xs"
                 onClick={() => setWrap((value) => !value)}
                 aria-label="Toggle line wrapping"
-                className={cn(wrap && "bg-muted")}
+                aria-pressed={wrap}
+                className={cn(wrap && "text-brand")}
               >
                 <WrapText className="size-3.5" />
               </Button>
@@ -473,7 +478,7 @@ export function FilesView({
                 </div>
               ) : view === "diff" && diff ? (
                 <div className="scrollbar-thin h-full overflow-y-auto p-4">
-                  <DiffView diff={diff} file={selected} className="border-border/70" />
+                  <DiffView diff={diff} file={selected} className="border-border" />
                 </div>
               ) : (
                 <CodeView
@@ -486,9 +491,7 @@ export function FilesView({
           </>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-            <div className="grid size-12 place-items-center rounded-2xl border border-border/70 bg-muted/30">
-              <FileCode2 className="size-5 text-muted-foreground/60" />
-            </div>
+            <FileCode2 className="size-5 text-muted-foreground/50" aria-hidden="true" />
             <div>
               <p className="text-sm font-medium">Select a file to inspect it</p>
               <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
@@ -500,9 +503,9 @@ export function FilesView({
               </p>
             </div>
             {hasRepo ? (
-              <Badge variant="outline" className="font-mono text-[10px]">
+              <p className="font-mono text-[11px] text-muted-foreground">
                 {status.length} changed file{status.length === 1 ? "" : "s"}
-              </Badge>
+              </p>
             ) : null}
           </div>
         )}

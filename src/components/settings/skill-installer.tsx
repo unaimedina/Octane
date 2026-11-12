@@ -2,16 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, PackagePlus, Search, Sparkles } from "lucide-react";
+import { Check, Loader2, PackagePlus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiJson, jsonBody } from "@/lib/api";
 
@@ -125,17 +118,8 @@ export function SkillInstaller() {
     detected !== null && detected.length > 0 && selected.length === detected.length;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <PackagePlus className="size-4" /> Install skills
-        </CardTitle>
-        <CardDescription>
-          Clone a public repository and install its <span className="font-mono">SKILL.md</span>{" "}
-          folders into this workspace.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    // Rendered inside the Settings "Skills" section, which owns the heading.
+    <div className="space-y-3">
         <form
           className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_auto]"
           onSubmit={(event) => {
@@ -225,19 +209,19 @@ export function SkillInstaller() {
                 const checked = selected.includes(skill.path);
                 return (
                   <li key={`${skill.id}:${skill.path}`}>
-                    <label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-border/60 px-2.5 py-2 transition-colors hover:bg-muted/50">
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border px-2.5 py-2 transition-colors hover:bg-accent/50">
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggle(skill.path)}
-                        className="mt-0.5 size-3.5 accent-success"
+                        className="mt-0.5 size-3.5 rounded-sm accent-brand"
                       />
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="truncate text-xs font-medium">
                             {skill.name}
                           </span>
-                          <span className="rounded bg-muted px-1.5 py-px font-mono text-[9px] text-muted-foreground">
+                          <span className="rounded-sm bg-muted px-1.5 py-px font-mono text-[10px] text-muted-foreground">
                             {skill.id}
                           </span>
                           {checked ? (
@@ -245,11 +229,11 @@ export function SkillInstaller() {
                           ) : null}
                         </span>
                         {skill.description ? (
-                          <span className="mt-0.5 block max-h-8 overflow-hidden text-[10px] leading-relaxed text-muted-foreground">
+                          <span className="mt-0.5 block max-h-8 overflow-hidden text-[11px] leading-relaxed text-muted-foreground">
                             {skill.description}
                           </span>
                         ) : null}
-                        <span className="mt-0.5 block truncate font-mono text-[9px] text-muted-foreground/50">
+                        <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground">
                           {skill.path === "." ? "repository root" : skill.path}
                         </span>
                       </span>
@@ -262,14 +246,14 @@ export function SkillInstaller() {
         ) : null}
 
         {detected !== null && detected.length === 0 ? (
-          <p className="rounded-[10px] border border-warning/25 bg-warning/5 px-2.5 py-2 text-[11px] text-warning">
+          <p className="rounded-sm border-l-2 border-warning bg-warning/8 px-3 py-2 text-xs text-warning">
             No <span className="font-mono">SKILL.md</span> folders were found. Point
             the scanner at the repository that contains the skill folder, or use the
             branch/tag field.
           </p>
         ) : null}
 
-        <p className="text-[10px] leading-relaxed text-muted-foreground">
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
           {destination ? (
             <>
               Installs into{" "}
@@ -285,18 +269,16 @@ export function SkillInstaller() {
           Existing skills with the same ID are replaced. Public repositories only.
         </p>
 
-        <p className="text-[10px] leading-relaxed text-muted-foreground/70">
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
           If installation fails with <span className="font-mono">EACCES</span>, make
           sure the shared skills volume is mounted and writable by UID 1001. In Docker
           Compose this is the <span className="font-mono">opencode-skills</span>{" "}
           volume.
         </p>
 
-        <p className="flex items-start gap-1.5 text-[10px] leading-relaxed text-muted-foreground/70">
-          <Sparkles className="mt-0.5 size-3 shrink-0 text-success" />
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
           Installed skills appear in the composer after the page refreshes.
         </p>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

@@ -10,11 +10,11 @@ A self-hosted, authenticated workspace for the [OpenCode](https://opencode.ai) a
 
 <p align="center">
   <a href="./assets/readme/workspace.webp">
-    <img src="./assets/readme/workspace-session.webp" width="100%" alt="A real OCTANE session showing reasoning, tool calls, a running write and the composer">
+    <img src="./assets/readme/workspace-session.webp" width="100%" alt="A real OCTANE session showing reasoning, tool calls, a shell check, the answer and a task in the side panel">
   </a>
 </p>
 
-<p align="center"><sub>A real OCTANE session: reasoning, tool calls, a running write and the composer. Click to open the full workspace.</sub></p>
+<p align="center"><sub>A real OCTANE session: reasoning, tool calls, a shell check, the answer and a task. Click to open the full workspace.</sub></p>
 
 ## Quick start
 

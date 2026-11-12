@@ -10,6 +10,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand";
+import { DotMatrixEmblem } from "@/components/chat/dot-matrix-emblem";
+import { Button } from "@/components/ui/button";
 
 type Health = {
   authConfigured: boolean;
@@ -67,6 +69,15 @@ export function LoginForm({
   );
   const [health, setHealth] = React.useState<Health | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  // The input is disabled while the request runs, so focus it once it's enabled again.
+  const refocusRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!loading && refocusRef.current) {
+      refocusRef.current = false;
+      inputRef.current?.focus();
+    }
+  }, [loading]);
 
   React.useEffect(() => {
     if (passwordEnabled) inputRef.current?.focus();
@@ -99,7 +110,7 @@ export function LoginForm({
               : "Sign in failed."),
         );
         setPassword("");
-        inputRef.current?.focus();
+        refocusRef.current = true;
         return;
       }
       router.replace(next);
@@ -116,175 +127,157 @@ export function LoginForm({
   );
   const discordHref = `/api/auth/discord/start?next=${encodeURIComponent(next)}`;
 
+  const calloutWarning =
+    "flex items-start gap-2 rounded-sm border-l-2 border-warning bg-warning/8 px-3 py-2 text-xs text-warning";
+
   return (
     <main className="dark relative min-h-dvh overflow-x-hidden bg-background text-foreground">
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1240px] flex-col px-5 sm:px-8">
-        <header className="flex h-16 shrink-0 items-center border-b border-border/60">
-          <BrandLogo />
-        </header>
+      <div className="mx-auto grid min-h-dvh w-full max-w-[1240px] lg:grid-cols-[1.1fr_0.9fr]">
+        <section
+          aria-hidden="true"
+          className="hidden min-w-0 flex-col justify-center px-10 lg:flex"
+        >
+          <DotMatrixEmblem lit={false} className="w-[70%] max-w-none opacity-60" />
+          <p className="mt-6 text-sm text-muted-foreground">
+            Self-hosted workspace for the OpenCode agent.
+          </p>
+        </section>
 
-        <div className="grid min-w-0 flex-1 items-center gap-12 py-12 lg:grid-cols-[1.08fr_0.92fr] lg:gap-20 lg:py-16">
-          <section className="order-2 min-w-0 max-w-[680px] lg:order-1">
-            <h1 className="text-balance text-[clamp(2.15rem,4.2vw,3.25rem)] font-semibold leading-[1.07] tracking-[-0.045em]">
-              Self-hosted AI coding
-              <br />
-              <span className="text-muted-foreground">workspace for OpenCode.</span>
-            </h1>
-
-            <p className="mt-6 max-w-[560px] text-pretty text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-              Secure authentication, live AI sessions, file management, code diffs,
-              terminal access, task management and usage tracking. Docker-ready, with
-              a private environment for each user.
+        <section className="flex min-w-0 flex-col px-5 sm:px-8">
+          <div className="mx-auto flex w-full max-w-[340px] flex-1 flex-col justify-center py-12">
+            <BrandLogo className="h-6 self-start" />
+            <h1 className="headline mt-8 text-[24px] leading-tight">Sign in</h1>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+              {passwordEnabled && discordEnabled
+                ? "Use your password or continue with Discord."
+                : passwordEnabled
+                  ? "Enter the password configured for this deployment."
+                  : discordEnabled
+                    ? "Use your Discord account. Access requires the configured role in the server."
+                    : "Authentication is not configured for this deployment."}
             </p>
-          </section>
 
-          <section className="order-1 min-w-0 w-full max-w-[460px] justify-self-start lg:order-2 lg:justify-self-end">
-            <div className="glass-float relative rounded-2xl p-6 sm:p-8">
-              <h2 className="text-3xl font-semibold tracking-[-0.04em]">Sign in</h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {passwordEnabled && discordEnabled
-                  ? "Use your password or continue with Discord."
-                  : passwordEnabled
-                    ? "Enter the password configured for this deployment."
-                    : discordEnabled
-                      ? "Use your Discord account. Access requires the configured role in the server."
-                      : "Authentication is not configured for this deployment."}
-              </p>
+            <div className="mt-6 space-y-4">
+              {error ? (
+                <div
+                  id="login-error"
+                  role="alert"
+                  className="flex items-start gap-2 rounded-sm border-l-2 border-destructive bg-destructive/8 px-3 py-2 text-xs text-destructive"
+                >
+                  <CircleAlert className="mt-px size-3.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              ) : null}
 
-              <div className="mt-6 space-y-4">
-                {error ? (
-                  <div
-                    id="login-error"
-                    role="alert"
-                    className="flex items-start gap-2.5 rounded-[10px] border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-[13px] text-destructive"
-                  >
-                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                ) : null}
+              {!passwordEnabled && !discordEnabled ? (
+                <div className={calloutWarning}>
+                  <CircleAlert className="mt-px size-3.5 shrink-0" />
+                  <span>
+                    Set <code className="font-mono">AUTH_PASSWORD</code> or{" "}
+                    <code className="font-mono">AUTH_PASSWORD_HASH</code> for
+                    password sign-in, or configure the{" "}
+                    <code className="font-mono">DISCORD_*</code> variables.
+                  </span>
+                </div>
+              ) : null}
 
-                {!passwordEnabled && !discordEnabled ? (
-                  <div className="flex items-start gap-2.5 rounded-[10px] border border-warning/30 bg-warning/8 px-3 py-2.5 text-[13px] text-warning">
-                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
-                    <span>
-                      Set <code className="font-mono text-xs">AUTH_PASSWORD</code> or{" "}
-                      <code className="font-mono text-xs">AUTH_PASSWORD_HASH</code> for
-                      password sign-in, or configure the{" "}
-                      <code className="font-mono text-xs">DISCORD_*</code> variables.
-                    </span>
-                  </div>
-                ) : null}
+              {health?.upstream.unauthorized ? (
+                <div className={calloutWarning}>
+                  <CircleAlert className="mt-px size-3.5 shrink-0" />
+                  <span>
+                    The OpenCode server rejected the configured credentials. Check{" "}
+                    <code className="font-mono">OPENCODE_SERVER_PASSWORD</code>{" "}
+                    and restart the server with the same value.
+                  </span>
+                </div>
+              ) : null}
 
-                {health?.upstream.unauthorized ? (
-                  <div className="flex items-start gap-2.5 rounded-[10px] border border-warning/30 bg-warning/8 px-3 py-2.5 text-[13px] text-warning">
-                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
-                    <span>
-                      The OpenCode server rejected the configured credentials. Check{" "}
-                      <code className="font-mono text-xs">OPENCODE_SERVER_PASSWORD</code>{" "}
-                      and restart the server with the same value.
-                    </span>
-                  </div>
-                ) : null}
+              {health?.upstream.mode === "per-user" && !runtimeReady ? (
+                <div className={calloutWarning}>
+                  <CircleAlert className="mt-px size-3.5 shrink-0" />
+                  <span>
+                    The OpenCode CLI is not available. Install it or set{" "}
+                    <code className="font-mono">OPENCODE_BIN</code> to its
+                    path so each user can get a private server after signing in.
+                  </span>
+                </div>
+              ) : null}
 
-                {health?.upstream.mode === "per-user" && !runtimeReady ? (
-                  <div className="flex items-start gap-2.5 rounded-[10px] border border-warning/30 bg-warning/8 px-3 py-2.5 text-[13px] text-warning">
-                    <CircleAlert className="mt-0.5 size-4 shrink-0" />
-                    <span>
-                      The OpenCode CLI is not available. Install it or set{" "}
-                      <code className="font-mono text-xs">OPENCODE_BIN</code> to its
-                      path so each user can get a private server after signing in.
-                    </span>
-                  </div>
-                ) : null}
-
-                {passwordEnabled ? (
-                  <form onSubmit={onSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <label
-                        htmlFor="password"
-                        className="text-[11px] font-medium text-muted-foreground"
+              {passwordEnabled ? (
+                <form onSubmit={onSubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="password" className="text-xs text-muted-foreground">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        ref={inputRef}
+                        id="password"
+                        name="password"
+                        type={visible ? "text" : "password"}
+                        autoComplete="current-password"
+                        placeholder="••••••••••••"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        disabled={loading}
+                        className="h-10 w-full rounded-md border border-input bg-muted px-3 pr-11 text-[14px] text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground/50 focus:border-brand focus:ring-1 focus:ring-brand/30 disabled:opacity-50"
+                        aria-invalid={Boolean(error)}
+                        aria-describedby={error ? "login-error" : undefined}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setVisible((value) => !value)}
+                        className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        aria-label={visible ? "Hide password" : "Show password"}
+                        tabIndex={-1}
                       >
-                        Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          ref={inputRef}
-                          id="password"
-                          name="password"
-                          type={visible ? "text" : "password"}
-                          autoComplete="current-password"
-                          placeholder="••••••••••••"
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                          disabled={loading}
-                          className="h-11 w-full rounded-[10px] border border-border/70 bg-card/40 px-3.5 pr-11 text-[14px] text-foreground outline-none transition-[border-color,box-shadow,background-color] placeholder:text-muted-foreground/40 focus:border-brand/60 focus:bg-card/50 focus:ring-1 focus:ring-brand/20 disabled:opacity-50"
-                          aria-invalid={Boolean(error)}
-                          aria-describedby={error ? "login-error" : undefined}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setVisible((value) => !value)}
-                          className="absolute right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-[8px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                          aria-label={visible ? "Hide password" : "Show password"}
-                          tabIndex={-1}
-                        >
-                          {visible ? (
-                            <EyeOff className="size-4" />
-                          ) : (
-                            <Eye className="size-4" />
-                          )}
-                        </button>
-                      </div>
+                        {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
                     </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading || !password}
-                      className="group inline-flex h-11 w-full items-center justify-between rounded-[10px] bg-brand px-5 text-[14px] font-semibold tracking-[-0.01em] text-brand-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_16px_40px_-22px_rgba(255,138,0,0.8)] transition-[background-color,transform,box-shadow] duration-200 hover:-translate-y-px hover:bg-brand/90 disabled:pointer-events-none disabled:opacity-40"
-                    >
-                      <span className="flex items-center gap-2">
-                        {loading ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : null}
-                        {loading ? "Verifying…" : "Continue to workspace"}
-                      </span>
-                      {!loading ? (
-                        <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                      ) : null}
-                    </button>
-                  </form>
-                ) : null}
-
-                {passwordEnabled && discordEnabled ? (
-                  <div className="flex items-center gap-3 py-1">
-                    <span className="h-px flex-1 bg-border/60" />
-                    <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground/60">
-                      or
-                    </span>
-                    <span className="h-px flex-1 bg-border/60" />
                   </div>
-                ) : null}
 
-                {discordEnabled ? (
-                  <a
-                    href={discordHref}
-                    className="group inline-flex h-11 w-full items-center justify-between rounded-[10px] border border-border/70 bg-card/40 px-5 text-[14px] font-medium tracking-[-0.01em] text-foreground transition-[background-color,border-color] duration-200 hover:border-foreground/20 hover:bg-muted/60"
+                  <Button
+                    type="submit"
+                    disabled={loading || !password}
+                    className="h-10 w-full justify-between px-4"
                   >
+                    <span className="flex items-center gap-2">
+                      {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+                      {loading ? "Verifying…" : "Sign in"}
+                    </span>
+                    {!loading ? <ArrowRight className="size-4" /> : null}
+                  </Button>
+                </form>
+              ) : null}
+
+              {passwordEnabled && discordEnabled ? (
+                <div className="flex items-center gap-3 py-0.5">
+                  <span className="h-px flex-1 bg-border" />
+                  <span className="text-[11px] text-muted-foreground">or</span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+              ) : null}
+
+              {discordEnabled ? (
+                <Button variant="outline" className="h-10 w-full justify-between px-4" asChild>
+                  <a href={discordHref}>
                     <span className="flex items-center gap-2.5">
-                      <DiscordIcon className="size-[18px]" />
+                      <DiscordIcon className="size-4" />
                       Continue with Discord
                     </span>
-                    <ArrowRight className="size-4 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-foreground" />
+                    <ArrowRight className="size-4 text-muted-foreground" />
                   </a>
-                ) : null}
-              </div>
+                </Button>
+              ) : null}
             </div>
-          </section>
-        </div>
+          </div>
 
-        <footer className="shrink-0 py-4 text-center text-[10px] text-muted-foreground/50">
-          Not affiliated with Anomaly.
-        </footer>
+          <footer className="shrink-0 py-4 text-center font-mono text-[11px] text-muted-foreground lg:text-left">
+            self-hosted
+            {health?.upstream.version ? ` · OpenCode ${health.upstream.version}` : ""} · Not
+            affiliated with Anomaly.
+          </footer>
+        </section>
       </div>
     </main>
   );

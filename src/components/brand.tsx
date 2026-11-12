@@ -36,13 +36,7 @@ export function BrandLogo({ className }: { className?: string }) {
   );
 }
 
-export function Wordmark({
-  className,
-}: {
-  className?: string;
-  /** @deprecated No longer rendered; removed in plan 018. */
-  showBadge?: boolean;
-}) {
+export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cn("flex min-w-0 items-center gap-2.5", className)}>
       <BrandMark />

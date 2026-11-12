@@ -10,7 +10,7 @@ const buttonVariants = cva(
       variant: {
         default:
           // Primary action: the logo's chamfer. clip-path hides rings, so focus is an inset stroke.
-          "chamfer bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:border-transparent focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_2px_var(--primary-foreground)]",
+          "chamfer bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:border-transparent focus-visible:ring-0 focus-visible:shadow-[inset_0_0_0_2px_var(--background),inset_0_0_0_4px_var(--foreground)]",
         outline:
           "border-border bg-transparent text-foreground hover:border-foreground/20 hover:bg-secondary aria-expanded:bg-secondary",
         secondary:

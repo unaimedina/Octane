@@ -185,7 +185,7 @@ export function ProjectDialog({
             </div>
 
             {error ? (
-              <p className="rounded-[10px] border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-[11px] text-destructive">
+              <p className="rounded-sm border-l-2 border-destructive bg-destructive/8 px-3 py-2 text-xs text-destructive" role="alert">
                 {error}
               </p>
             ) : null}

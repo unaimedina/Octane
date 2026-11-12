@@ -48,10 +48,6 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
-  /* Capped: nothing in OCTANE is rounder than 12px (plan 014 design contract). */
-  --radius-2xl: var(--radius-xl);
-  --radius-3xl: var(--radius-xl);
-  --radius-4xl: var(--radius-xl);
 }
 
 /* Warm graphite. One accent (fuel orange) for agent activity, selection and the
@@ -96,11 +92,6 @@
   --sidebar-accent-foreground: #eceae6;
   --sidebar-border: rgba(255, 255, 255, 0.07);
   --sidebar-ring: #ff8a00;
-  /* Deprecated glass tokens: now flat. Removed in plan 018. */
-  --glass: var(--card);
-  --glass-strong: var(--popover);
-  --glass-border: var(--border);
-  --glass-highlight: transparent;
 }
 
 .light {
@@ -141,10 +132,6 @@
   --sidebar-accent-foreground: #1a1918;
   --sidebar-border: rgba(26, 25, 24, 0.09);
   --sidebar-ring: #b35600;
-  --glass: var(--card);
-  --glass-strong: var(--popover);
-  --glass-border: var(--border);
-  --glass-highlight: transparent;
 }
 
 @layer base {
@@ -184,7 +171,7 @@
     height: 8px;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    border-radius: 9999px;
+    border-radius: 9999px; /* unslop-ignore: scrollbar thumb, a platform convention, not a button */
     background: color-mix(in oklch, var(--foreground) 16%, transparent);
     border: 2px solid transparent;
     background-clip: content-box;
@@ -205,40 +192,6 @@
   .animate-fade {
     animation: fade 0.25s ease both;
   }
-  .pulse-dot {
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-  .shimmer {
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      color-mix(in oklch, var(--foreground) 6%, transparent) 50%,
-      transparent 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.8s linear infinite;
-  }
-
-  /* Deprecated aliases: flat surfaces, no blur. Call sites migrate in plans
-     015–018; plan 018 removes these names. */
-  .glass-panel {
-    background: var(--card);
-    border: 1px solid var(--border);
-  }
-  .glass-inset {
-    background: var(--muted);
-    border: 1px solid var(--border);
-  }
-  .glass-bar {
-    background: var(--background);
-    border-color: var(--border);
-  }
-  .glass-float {
-    background: var(--popover);
-    border: 1px solid var(--border);
-    box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
-  }
-
   /* OCTANE surfaces (plan 014 design contract). Separation comes from the
      card/background step and hairlines; only floating layers get a shadow. */
   .surface-panel {
@@ -261,7 +214,7 @@
   }
   /* The logo's 45° cut. Primary action only. Clips rings: pair with an inset focus style. */
   .chamfer {
-    clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
   }
   .status-square {
     display: inline-block;
@@ -297,18 +250,6 @@
   }
 }
 
-@keyframes pulse-dot {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 color-mix(in oklch, var(--foreground) 25%, transparent);
-  }
-  50% {
-    opacity: 0.65;
-    box-shadow: 0 0 0 4px transparent;
-  }
-}
-
 @keyframes activity-sweep {
   0%,
   37% {
@@ -317,15 +258,6 @@
   38%,
   100% {
     background-color: color-mix(in oklab, var(--muted-foreground) 25%, transparent);
-  }
-}
-
-@keyframes shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
   }
 }
 
@@ -558,10 +490,6 @@
 }
 
 @media (prefers-contrast: more) {
-  .glass-panel,
-  .glass-inset,
-  .glass-bar,
-  .glass-float,
   .surface-panel,
   .surface-float {
     border-color: color-mix(in oklab, var(--foreground) 24%, transparent);
