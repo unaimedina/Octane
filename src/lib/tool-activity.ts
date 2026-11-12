@@ -326,15 +326,22 @@ export function currentActivity(messages: MessageLike[], root?: string): string 
   if (!last) return null;
   for (let i = last.parts.length - 1; i >= 0; i--) {
     const part = last.parts[i];
-    if (part.type === "tool" && part.tool && part.state) {
-      if (part.state.status === "running" || part.state.status === "pending") {
-        return `${sentenceText(describeTool(part as ToolLike, root))}…`;
-      }
-    } else if (part.type === "reasoning" && !part.time?.end) {
-      return "Thinking…";
-    } else if (part.type === "text" && (part.text ?? "").trim() && !part.time?.end) {
-      return "Writing the response…";
+    if (
+      part.type === "tool" &&
+      part.tool &&
+      part.state &&
+      (part.state.status === "running" || part.state.status === "pending")
+    ) {
+      return `${sentenceText(describeTool(part as ToolLike, root))}…`;
     }
   }
-  return null;
+  let tail: MessageLike["parts"][number] | undefined;
+  for (let i = last.parts.length - 1; i >= 0; i--) {
+    const part = last.parts[i];
+    if (part.type === "text" && !(part.text ?? "").trim()) continue;
+    tail = part;
+    break;
+  }
+  if (tail?.type === "reasoning" && !tail.time?.end) return "Thinking…";
+  if (tail?.type === "text" && !tail.time?.end) return "Writing the response…";  return null;
 }

@@ -155,5 +155,16 @@ test("currentActivity", () => {
   assert.equal(currentActivity([assistant([{ type: "reasoning", text: "x", time: { start: 1 } }])]), "Thinking…");
   assert.equal(currentActivity([assistant([{ type: "text", text: "hello", time: { start: 1 } }])]), "Writing the response…");
   assert.equal(currentActivity([assistant([{ type: "text", text: "done", time: { start: 1, end: 2 } }])]), null);
-  assert.equal(currentActivity([]), null);
+  const done = { type: "tool", tool: "read", state: { status: "completed", input: { path: "/a/b.ts" } } };
+  assert.equal(currentActivity([assistant([{ type: "text", text: "hi" }, done])]), null);
+  assert.equal(
+    currentActivity([
+      assistant([
+        { type: "tool", tool: "shell", state: { status: "running", input: { command: "ls" } } },
+        { type: "text", text: "hi" },
+      ]),
+    ]),
+    "Running ls…",
+  );
+  assert.equal(currentActivity([assistant([done, { type: "text", text: "hi" }])]), "Writing the response…");  assert.equal(currentActivity([]), null);
 });

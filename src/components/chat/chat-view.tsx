@@ -1944,23 +1944,23 @@ export function ChatView({
                     </div>
                   ) : null}
                   <ToolRootContext.Provider value={session.directory ?? undefined}>
-                  {visibleMessages.map((message) => (
-                    <div key={message.info.id} className="chat-message">
-                      {message.info.role === "user" ? (
-                        message.info.agent === "context" ? (
-                          <ContextMessageView message={message} />
+                    {visibleMessages.map((message) => (
+                      <div key={message.info.id} className="chat-message">
+                        {message.info.role === "user" ? (
+                          message.info.agent === "context" ? (
+                            <ContextMessageView message={message} />
+                          ) : (
+                            <UserMessageView message={message} />
+                          )
                         ) : (
-                          <UserMessageView message={message} />
-                        )
-                      ) : (
-                        <AssistantMessageView
-                          message={message}
-                          streaming={message.info.id === streamingMessageId}
-                          harnessLabel={harnessLabel}
-                        />
-                      )}
-                    </div>
-                  ))}
+                          <AssistantMessageView
+                            message={message}
+                            streaming={message.info.id === streamingMessageId}
+                            harnessLabel={harnessLabel}
+                          />
+                        )}
+                      </div>
+                    ))}
                   </ToolRootContext.Provider>
                   {busy ? (
                     <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
