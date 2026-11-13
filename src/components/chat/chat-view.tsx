@@ -670,6 +670,7 @@ export function ChatView({
     deleteSession,
     hideSessions,
     loadQuestions,
+    refreshPermissions,
     pendingPermissions,
     respondPermission,
   } = useAppData();
@@ -678,7 +679,8 @@ export function ChatView({
 
   React.useEffect(() => {
     void loadQuestions(session.id);
-  }, [loadQuestions, session.id]);
+    void refreshPermissions(session.id);
+  }, [loadQuestions, refreshPermissions, session.id]);
   const [workers, setWorkers] = React.useState<WorkerRecord[]>([]);
   const [openWorkerID, setOpenWorkerID] = React.useState<string | null>(null);
   const [messages, setMessages] = React.useState(() =>
