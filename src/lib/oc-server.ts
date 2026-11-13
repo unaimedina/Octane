@@ -34,6 +34,7 @@ import {
 } from "./questions";
 import { apiFlavor, UpstreamError, upstreamFetch, upstreamJson } from "./upstream";
 import { serverAuthHeader } from "./env";
+import { isTextFile, isTextLikeContentType } from "./file-kind";
 
 type Raw = Record<string, unknown>;
 
@@ -979,11 +980,7 @@ export async function getFileContent(path: string): Promise<FileContent | null> 
       if (!response.ok) return null;
       const contentType = response.headers.get("content-type") ?? "";
       const buffer = Buffer.from(await response.arrayBuffer());
-      const textLike =
-        contentType.startsWith("text/") ||
-        /json|javascript|xml|svg|x-sh|toml|yaml/.test(contentType) ||
-        (!contentType && !buffer.includes(0));
-      if (!textLike) {
+      if (!isTextFile({ path, contentType, bytes: buffer })) {
         return {
           type: "binary",
           content: buffer.toString("base64"),
@@ -1006,7 +1003,9 @@ export async function getFileContent(path: string): Promise<FileContent | null> 
       return {
         type: "text",
         content: buffer.toString("utf8"),
-        mimeType: contentType || "text/plain",
+        mimeType: isTextLikeContentType(contentType)
+          ? contentType
+          : "text/plain; charset=utf-8",
         ...(diff ? { diff } : {}),
       };
     }
