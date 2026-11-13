@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
 import { ActivityBar } from "@/components/chat/activity-bar";
 import { ContextPanel } from "@/components/chat/context-panel";
-import { DotMatrixEmblem } from "@/components/chat/dot-matrix-emblem";
+import { AsciiEmblem } from "@/components/chat/ascii-emblem";
 import {
   PlanFilesImportDialog,
   type PlanFilePreviewItem,
@@ -2004,7 +2004,7 @@ export function ChatView({
             <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
               {showEmpty ? (
                 <div className="animate-fade flex min-h-[calc(100dvh-16rem)] flex-col justify-center py-10">
-                  <DotMatrixEmblem />
+                  <AsciiEmblem />
                   <p className="mt-3 text-center font-mono text-[11px] text-muted-foreground">
                     [ idle ]
                   </p>

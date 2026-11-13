@@ -10,7 +10,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand";
-import { DotMatrixEmblem } from "@/components/chat/dot-matrix-emblem";
+import { AsciiEmblem } from "@/components/chat/ascii-emblem";
 import { Button } from "@/components/ui/button";
 
 type Health = {
@@ -137,7 +137,7 @@ export function LoginForm({
           aria-hidden="true"
           className="hidden min-w-0 flex-col justify-center px-10 lg:flex"
         >
-          <DotMatrixEmblem lit={false} className="w-[70%] max-w-none opacity-60" />
+          <AsciiEmblem className="mx-0 opacity-60" />
           <p className="mt-6 text-sm text-muted-foreground">
             Self-hosted workspace for the OpenCode agent.
           </p>
