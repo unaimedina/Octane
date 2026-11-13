@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowUp, FolderGit2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
-import { DotMatrixEmblem } from "@/components/chat/dot-matrix-emblem";
+import { AsciiEmblem } from "@/components/chat/ascii-emblem";
 import { FolderPicker } from "@/components/chat/folder-picker";
 import { UsageCard } from "@/components/usage/usage-card";
 import {
@@ -155,7 +155,7 @@ export function NewChat() {
     <div className="scrollbar-thin h-full overflow-y-auto">
       <div className="relative mx-auto flex min-h-full w-full max-w-3xl flex-col justify-center px-5 py-12">
         <div className="animate-in-up">
-          <DotMatrixEmblem />
+          <AsciiEmblem />
           <p className="mt-3 text-center font-mono text-[11px] text-muted-foreground">{caption}</p>
 
           <h1 className="headline mt-10 text-[28px] leading-tight">
