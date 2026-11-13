@@ -55,7 +55,7 @@ The web image embeds the `ghcr.io/anomalyco/opencode` binary pinned to a tested 
 
 ## What you get
 
-- **Live sessions** — streaming text, reasoning, tool calls and subagent progress over SSE, with permission prompts (once / always / reject), optimistic sends, automatic reconnect, a 50-message working window with the full log one click away, and fork or summarize from the session menu.
+- **Live sessions** — streaming text, reasoning, tool calls and subagent progress over SSE, with permission prompts (once / always / reject) restored on reload, reconnect, focus or session open, optimistic sends, automatic reconnect, a 50-message working window with the full log one click away, and fork or summarize from the session menu.
 - **A real workspace** — searchable sessions grouped by project in the sidebar, a `Connected · NN ms` indicator that probes `/api/health` (browser → OCTANE → OpenCode) every 15 s while the tab is visible, one account menu for settings, theme and sign-out, a project file browser, GitHub-flavoured Markdown with copyable code blocks, changed-file review with `@pierre/diffs`, lazy diffs, copy-patch, and a root folder picker for new sessions.
 - **Projects** — group sessions around a local folder, keep shared context for every new chat, and link an optional GitHub repository verified through OAuth.
 - **Tasks, shell and slash commands** — persistent per-session tasks with a definition, an agent prompt, status and priority. Tasks can depend on other tasks, and the server decides when a run is finished from the agent's reply. Run a task, edit it, add one manually, or import the steps from the latest plan; then switch to `!` shell mode for terminal cards and insert the server's slash commands.

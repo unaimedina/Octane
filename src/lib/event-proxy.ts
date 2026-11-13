@@ -1,6 +1,7 @@
 import { apiFlavor, upstreamFetch } from "./upstream";
 import { getMessageById, getSession, getSessionDiff } from "./oc-server";
 import { formToQuestionRequest, normalizeQuestionRequest } from "./questions";
+import { normalizePermissionRequest } from "./permissions";
 import type { SessionStatus } from "./types";
 
 type Raw = Record<string, unknown>;
@@ -15,9 +16,6 @@ function str(value: unknown, fallback = ""): string {
 }
 function num(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-function arr(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
 }
 
 const TOKEN_ZERO = { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } };
@@ -433,29 +431,9 @@ export async function openEventStream(signal: AbortSignal): Promise<Response> {
       }
 
       case "permission.asked": {
-        const request = raw(data.request ?? data.permission ?? data);
-        const id = str(request.id, str(data.requestID));
-        const permissionSessionID = str(request.sessionID, sessionID);
-        if (!id || !permissionSessionID) return;
-        const resources = arr(request.resources).map((item) => str(item));
-        const action = str(request.action, "tool");
-        emit({
-          type: "permission.updated",
-          properties: {
-            id,
-            sessionID: permissionSessionID,
-            messageID: str(request.messageID),
-            type: action,
-            pattern: resources.length ? resources : undefined,
-            title: str(request.title, str(request.message, `Allow ${action}`)),
-            metadata: {
-              ...raw(request.metadata),
-              source: request.source,
-              message: request.message,
-            },
-            time: { created },
-          },
-        });
+        const permission = normalizePermissionRequest(data, sessionID, created);
+        if (!permission) return;
+        emit({ type: "permission.updated", properties: permission });
         return;
       }
 

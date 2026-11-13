@@ -19,6 +19,7 @@ import type {
 } from "@/lib/types";
 import type { UsageSummary } from "@/lib/usage";
 import { normalizeQuestionRequest, type QuestionRequest } from "@/lib/questions";
+import { mergePendingPermissions } from "@/lib/permissions";
 import { isFinishTransition } from "@/lib/sound-triggers";
 import { playSound, unlockAudio } from "@/lib/sounds";
 
@@ -45,6 +46,8 @@ type AppDataValue = {
   replyQuestion: (request: QuestionRequest, answers: string[][]) => Promise<void>;
   rejectQuestion: (request: QuestionRequest) => Promise<void>;
   loadQuestions: (sessionID: string) => Promise<void>;
+  /** Re-read pending permissions from the server (reconnect, focus, session open). */
+  refreshPermissions: (sessionID?: string) => Promise<void>;
   createSession: (options?: { title?: string; directory?: string }) => Promise<Session>;
   renameSession: (id: string, title: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -95,6 +98,7 @@ export function AppDataProvider({
   initialHealth,
   initialUsage,
   initialStatuses,
+  initialPermissions,
   username,
   harness,
   harnessLabel,
@@ -111,6 +115,7 @@ export function AppDataProvider({
   initialHealth: HealthInfo | null;
   initialUsage: UsageSummary;
   initialStatuses: Record<string, SessionStatus>;
+  initialPermissions: Permission[];
   username: string;
   harness: HarnessId;
   harnessLabel: string;
@@ -124,7 +129,9 @@ export function AppDataProvider({
   const [sessions, setSessions] = React.useState(() => sortSessions(initialSessions));
   const [projects, setProjects] = React.useState(initialProjects);
   const [statuses, setStatuses] = React.useState(initialStatuses);
-  const [pendingPermissions, setPendingPermissions] = React.useState<Permission[]>([]);
+  const [pendingPermissions, setPendingPermissions] = React.useState<Permission[]>(
+    () => initialPermissions,
+  );
   const [pendingQuestions, setPendingQuestions] = React.useState<QuestionRequest[]>([]);
   const [connected, setConnected] = React.useState(false);
   const [streamDownSince, setStreamDownSince] = React.useState<number | null>(null);
@@ -132,7 +139,20 @@ export function AppDataProvider({
   const statusRef = React.useRef<Record<string, SessionStatus>>(initialStatuses);
   const sessionsRef = React.useRef(sessions);
   // Permission/question IDs already announced, so each one sounds once.
-  const announcedRef = React.useRef(new Set<string>());
+  // Page-load permissions are seeded here: they were pending before the page
+  // existed, so restoring them must not replay the attention sound.
+  const announcedRef = React.useRef(new Set<string>(initialPermissions.map((item) => item.id)));
+  // id -> ms timestamp a permission arrived by live event (merge race guard).
+  const liveArrivalsRef = React.useRef(new Map<string, number>());
+  const permissionRefreshRef = React.useRef({ running: false, again: false });
+  const mountedRef = React.useRef(true);
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     sessionsRef.current = sessions;
@@ -178,6 +198,51 @@ export function AppDataProvider({
       setProjects(data.projects);
     } catch {
       // Keep the last known projects; grouping falls back gracefully.
+    }
+  }, []);
+
+  /**
+   * Catch-up read of pending permissions. Covers every running session plus an
+   * optional session the user just opened, and merges the result so live
+   * events keep working. Failures are ignored: this is a safety net.
+   */
+  const refreshPermissions = React.useCallback(async (sessionID?: string) => {
+    const state = permissionRefreshRef.current;
+    if (state.running) {
+      state.again = true;
+      return;
+    }
+    state.running = true;
+    try {
+      let nextSession = sessionID;
+      do {
+        state.again = false;
+        const query = nextSession ? `?session=${encodeURIComponent(nextSession)}` : "";
+        nextSession = undefined;
+        try {
+          const data = await apiJson<{ permissions?: Permission[]; scope?: string[] }>(
+            `/permissions${query}`,
+          );
+          if (!mountedRef.current) return;
+          const fetched = Array.isArray(data?.permissions) ? data.permissions : [];
+          const scope = new Set(Array.isArray(data?.scope) ? data.scope : []);
+          // Catch-up items were already pending; do not sound for them.
+          for (const item of fetched) announcedRef.current.add(item.id);
+          setPendingPermissions((current) =>
+            mergePendingPermissions({
+              current,
+              fetched,
+              scope,
+              liveArrivals: liveArrivalsRef.current,
+              now: Date.now(),
+            }),
+          );
+        } catch {
+          // Catch-up only; live events are the main path.
+        }
+      } while (state.again && mountedRef.current);
+    } finally {
+      state.running = false;
     }
   }, []);
 
@@ -275,12 +340,14 @@ export function AppDataProvider({
           break;
         case "permission.updated":
           announce(event.properties.id);
+          liveArrivalsRef.current.set(event.properties.id, Date.now());
           setPendingPermissions((current) => {
             if (current.some((item) => item.id === event.properties.id)) return current;
             return [...current, event.properties];
           });
           break;
         case "permission.replied":
+          liveArrivalsRef.current.delete(event.properties.permissionID);
           setPendingPermissions((current) =>
             current.filter((item) => item.id !== event.properties.permissionID),
           );
@@ -309,6 +376,7 @@ export function AppDataProvider({
         setStreamDownSince(null);
         void refreshSessions();
         void refreshProjects();
+        void refreshPermissions();
       };
 
       source.onerror = () => {
@@ -365,6 +433,7 @@ export function AppDataProvider({
       if (document.visibilityState !== "visible") return;
       void refreshSessions();
       void refreshProjects();
+      void refreshPermissions();
     };
     window.addEventListener("focus", onFocus);
 
@@ -376,7 +445,7 @@ export function AppDataProvider({
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
     };
-  }, [refreshSessions, refreshProjects]);
+  }, [refreshSessions, refreshProjects, refreshPermissions]);
 
   const createSession = React.useCallback(
     async (options?: { title?: string; directory?: string }) => {
@@ -425,6 +494,7 @@ export function AppDataProvider({
         `/sessions/${encodeURIComponent(permission.sessionID)}/permissions/${encodeURIComponent(permission.id)}`,
         { method: "POST", ...jsonBody({ response }) },
       );
+      liveArrivalsRef.current.delete(permission.id);
       setPendingPermissions((current) => current.filter((item) => item.id !== permission.id));
     },
     [],
@@ -488,6 +558,7 @@ export function AppDataProvider({
       replyQuestion,
       rejectQuestion,
       loadQuestions,
+      refreshPermissions,
       createSession,
       renameSession,
       deleteSession,
@@ -518,6 +589,7 @@ export function AppDataProvider({
       replyQuestion,
       rejectQuestion,
       loadQuestions,
+      refreshPermissions,
       createSession,
       renameSession,
       deleteSession,
