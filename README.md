@@ -61,7 +61,7 @@ The web image embeds the `ghcr.io/anomalyco/opencode` binary pinned to a tested 
 - **Tasks, shell and slash commands** — persistent per-session tasks with a definition, an agent prompt, status and priority. Tasks can depend on other tasks, and the server decides when a run is finished from the agent's reply. Run a task, edit it, add one manually, or import the steps from the latest plan; then switch to `!` shell mode for terminal cards and insert the server's slash commands.
 - **Context without a turn** — drop docs, logs, images, PDFs or another chat into a conversation as context, and attach skills to any prompt.
 - **Models and providers, per user** — choose a model per session or set a default, pick an agent, and connect OpenCode Console or an Anthropic API key. Each signed-in user gets a private OpenCode server, so sessions and provider credentials never cross accounts.
-- **Usage, locally estimated** — monthly cost, tokens and sessions, a model breakdown, optional budgets and a month-end forecast at `/usage`.
+- **Usage** — real OpenCode Go rolling, weekly and monthly limits with reset countdowns, a percentage chart with a pace forecast, and local token, session and model estimates at `/usage`. Falls back to local data when the Go API is unavailable.
 - **Auth built in** — password (scrypt) and/or Discord OAuth gated by a server role, with signed HttpOnly sessions, CSRF tokens and login rate limits.
 - **Docker-first** — a standalone non-root image with the OpenCode CLI embedded, a health check, Compose stack for OCTANE, shared skills volume and a consistent git config.
 
@@ -110,9 +110,10 @@ Subagents are matched to their child session by `parentID` and rendered as live 
 | `OPENCODE_SERVER_PASSWORD` | shared | — | Basic-auth password for the shared upstream. Per-user servers generate their own random passwords. |
 | `OPENCODE_API_FLAVOR` | no | auto | Force `v1` or `v2` instead of probing. |
 | `ANTHROPIC_API_KEY` | no | — | Shared-mode convenience only. Per-user servers do not inherit it; each user connects their own key in Settings. |
-| `USAGE_ROLLING_BUDGET_USD` | no | — | Optional rolling 24h budget for the local Usage dashboard. |
-| `USAGE_WEEKLY_BUDGET_USD` | no | — | Optional rolling 7-day budget. |
-| `USAGE_MONTHLY_BUDGET_USD` | no | — | Optional monthly budget; enables percentages and the month-end forecast. |
+| `OPENCODE_GO_API_KEY` | no | — | Optional OpenCode Go API key for the real usage limits. In `per-user` mode the user's own OpenCode login (`auth.json`) is read first. `OPENCODE_API_KEY` is used as a second choice. |
+| `USAGE_ROLLING_BUDGET_USD` | no | — | Fallback rolling 24h budget used only when the Go usage API is unavailable. |
+| `USAGE_WEEKLY_BUDGET_USD` | no | — | Fallback rolling 7-day budget used only when the Go usage API is unavailable. |
+| `USAGE_MONTHLY_BUDGET_USD` | no | — | Fallback monthly budget; enables local percentages and a forecast when the Go usage API is unavailable. |
 | `WEB_PORT` | no | `3000` | Host port published by Compose. |
 | `WORKSPACE_PATH` | no | `./workspace` | Host folder mounted at `/workspace` in the web container and its per-user OpenCode servers. |
 | `OPENCODE_SKILLS_DIR` | no | volume path | Where OCTANE writes installed skills. Compose sets it to the shared volume. |
@@ -203,9 +204,11 @@ Limitations:
 
 Tasks are stored per user and session under `OCTANE_DATA_DIR/tasks`; they persist across restarts. Older task files are upgraded automatically on first write.
 
-### Usage estimates
+### Usage
 
-The chat landing page and `/usage` aggregate the cost and token totals reported by sessions created during the current month. Set `USAGE_ROLLING_BUDGET_USD`, `USAGE_WEEKLY_BUDGET_USD` and `USAGE_MONTHLY_BUDGET_USD` to turn those totals into limits and a month-end forecast. These are local estimates, not OpenCode Go billing; use the OpenCode Console for exact credits and limits.
+`/usage` reads the account-level limits from `https://opencode.ai/zen/go/v1/usage` with the signed-in user's OpenCode Go key (or `OPENCODE_GO_API_KEY`). It shows the rolling, weekly and monthly percentages with their reset dates, a percentage chart and a pace forecast. The percentages and reset dates are account-wide; tokens, sessions and model shares are estimated from this web client's sessions.
+
+OpenCode Go reports `cost: 0` for sessions included in the plan, so the page never prints dollar figures for them. When the API is unavailable (no key, expired key, network failure or an unexpected response) the page falls back to the local session estimates and explains why. `USAGE_ROLLING_BUDGET_USD`, `USAGE_WEEKLY_BUDGET_USD` and `USAGE_MONTHLY_BUDGET_USD` are fallback budgets for that local mode. The endpoint is undocumented and may change; use the OpenCode Console for exact credits and limits.
 
 ### Docker notes
 
@@ -359,6 +362,7 @@ src/lib/projects.ts        per-user project JSON store
 src/lib/project-files.ts   AGENTS.md and context files on disk (gate, limits, containment)
 src/lib/agents-block.ts    managed context-files block in AGENTS.md
 src/lib/project-paths.ts   client-safe project path helpers
+src/lib/go-usage.ts        OpenCode Go usage API reader and key resolution
 src/lib/harness.ts         OpenCode label helpers
 src/lib/session-service.ts OpenCode session facade
 src/lib/tasks.ts          per-user, per-session task store

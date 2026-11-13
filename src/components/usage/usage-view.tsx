@@ -3,10 +3,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Gauge, RefreshCw } from "lucide-react";
-import { useAppData } from "@/components/app-data";
 import { UsageChart } from "@/components/usage/usage-chart";
 import { Button } from "@/components/ui/button";
-import type { UsageLimit } from "@/lib/usage";
+import { formatResetIn } from "@/lib/format";
+import type { UsageSummary, UsageWindow } from "@/lib/usage";
 import { cn } from "@/lib/utils";
 
 function money(value: number): string {
@@ -27,62 +27,105 @@ function formatPercent(value: number | null): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)}%`;
 }
 
-function limitTone(percent: number | null): string {
-  if (percent === null) return "bg-muted-foreground/30";
-  if (percent >= 100) return "bg-destructive";
-  if (percent >= 75) return "bg-warning";
-  return "bg-brand";
+function formatShare(percent: number): string {
+  if (percent <= 0) return "0%";
+  if (percent < 1) return "<1%";
+  return `${Math.round(percent)}%`;
 }
 
-function LimitRow({ limit }: { limit: UsageLimit }) {
+function formatDate(ts: number): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(ts);
+}
+
+function limitTone(percent: number, status: "ok" | "rate-limited"): string {
+  if (status === "rate-limited" || percent >= 90) return "bg-destructive";
+  if (percent >= 75) return "bg-warning";
+  return "bg-success";
+}
+
+function reasonCopy(reason: UsageSummary["reason"]): string {
+  switch (reason) {
+    case "no-key":
+      return "Go limits are not connected. Sign in to OpenCode Go in Settings, or set OPENCODE_GO_API_KEY.";
+    case "unauthorized":
+      return "The OpenCode Go key was rejected. Sign in again or update OPENCODE_GO_API_KEY.";
+    case "unreachable":
+      return "Could not reach the OpenCode usage service. Showing local estimates.";
+    case "invalid":
+      return "The usage service returned an unexpected response.";
+    default:
+      return "Set USAGE_MONTHLY_BUDGET_USD to turn local spend into a percentage.";
+  }
+}
+
+function LimitRow({ window, now }: { window: UsageWindow; now: number | null }) {
+  const reset =
+    window.resetsAt === null
+      ? null
+      : now === null
+        ? `Resets ${formatDate(window.resetsAt)}`
+        : `Resets in ${formatResetIn(window.resetsAt - now)}`;
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <div className="min-w-0">
-          <span className="text-xs">{limit.label}</span>
-          <span className="ml-1.5 text-[11px] text-muted-foreground">{limit.hint}</span>
-        </div>
+        <span className="text-xs">{window.label}</span>
         <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-          {limit.budget ? `${formatPercent(limit.percent)} used` : money(limit.used)}
+          {formatPercent(window.percent)} used
         </span>
       </div>
+      {reset ? <div className="text-[11px] text-muted-foreground">{reset}</div> : null}
       <div className="h-1 overflow-hidden bg-muted">
         <div
-          className={cn("h-full transition-[width]", limitTone(limit.percent))}
-          style={{
-            width: `${Math.min(100, Math.max(1, limit.percent ?? (limit.used > 0 ? 2 : 0)))}%`,
-          }}
+          className={cn("h-full transition-[width]", limitTone(window.percent, window.status))}
+          style={{ width: `${Math.min(100, Math.max(1, window.percent))}%` }}
         />
       </div>
-      <div className="flex justify-between font-mono text-[10px] text-muted-foreground">
-        <span>{money(limit.used)}</span>
-        <span>{limit.budget ? money(limit.budget) : "no budget set"}</span>
-      </div>
     </div>
   );
 }
 
-function Readout({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function ConsoleLink({ className }: { className?: string }) {
   return (
-    <div className="px-4 py-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-mono text-xl tabular-nums text-foreground">{value}</div>
-      {sub ? <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">{sub}</div> : null}
-    </div>
+    <Button variant="outline" size="sm" className={cn("h-8", className)} asChild>
+      <a href="https://opencode.ai/console" target="_blank" rel="noreferrer">
+        Open Console <ExternalLink className="size-3.5" />
+      </a>
+    </Button>
   );
 }
 
-export function UsageView() {
+export function UsageView({ usage }: { usage: UsageSummary }) {
   const router = useRouter();
-  const { usage } = useAppData();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [now, setNow] = React.useState<number | null>(null);
 
-  const monthlyPercent =
-    usage.monthlyBudget && usage.monthlyBudget > 0
-      ? (usage.totalCost / usage.monthlyBudget) * 100
-      : null;
+  React.useEffect(() => {
+    // Countdowns start after hydration so the server HTML stays stable.
+    const start = window.setTimeout(() => setNow(Date.now()), 0);
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => {
+      window.clearTimeout(start);
+      window.clearInterval(id);
+    };
+  }, []);
+
   // Orange marks only the most used model.
   const leaderPercent = Math.max(0, ...usage.models.map((model) => model.percent));
+  const pace = usage.pace;
+  const paceText =
+    pace?.eta !== null && pace?.eta !== undefined
+      ? `On pace to hit the limit ${formatDate(pace.eta)}`
+      : usage.percent !== null && pace
+        ? `On pace to reach ${Math.round(pace.projectedAtReset)}% by ${formatDate(usage.periodEnd)}`
+        : null;
+  const subtitle =
+    usage.source === "go"
+      ? `Go usage · Renews ${formatDate(usage.periodEnd)}`
+      : `Estimated from sessions in this web client · ${usage.monthLabel}`;
 
   function refresh() {
     setRefreshing(true);
@@ -97,7 +140,13 @@ export function UsageView() {
           <div>
             <h1 className="headline text-[26px] leading-tight">Usage</h1>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              Estimated from sessions in this web client · {usage.monthLabel}
+              {subtitle}
+              {paceText ? (
+                <>
+                  {" · "}
+                  <span className={pace?.eta ? "text-warning" : undefined}>{paceText}</span>
+                </>
+              ) : null}
             </p>
           </div>
           <Button
@@ -114,51 +163,50 @@ export function UsageView() {
         {!usage.hasUsage ? (
           <div className="flex flex-col items-center gap-2 border-t border-border py-14 text-center">
             <Gauge className="size-5 text-muted-foreground/60" aria-hidden="true" />
-            <p className="text-[13px] font-medium">No usage recorded this month</p>
+            <p className="text-[13px] font-medium">No usage recorded this period</p>
             <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
               Start a session and the local usage estimate will appear here.
             </p>
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 divide-border border-y border-border sm:grid-cols-4 sm:divide-x [&>*:nth-child(even)]:border-l [&>*:nth-child(even)]:border-border sm:[&>*:nth-child(even)]:border-l-0 [&>*:nth-child(-n+2)]:border-b sm:[&>*:nth-child(-n+2)]:border-b-0">
-              <Readout
-                label="Estimated cost"
-                value={money(usage.totalCost)}
-                sub={
-                  usage.monthlyBudget
-                    ? `${formatPercent(monthlyPercent)} of ${money(usage.monthlyBudget)}`
-                    : undefined
-                }
-              />
-              <Readout label="Input tokens" value={formatTokens(usage.inputTokens)} />
-              <Readout label="Output tokens" value={formatTokens(usage.outputTokens)} />
-              <Readout label="Sessions" value={String(usage.totalSessions)} />
+            <div className="border-t border-border pt-5">
+              <div className="flex flex-wrap items-baseline gap-2">
+                {usage.percent !== null ? (
+                  <>
+                    <span className="font-mono text-[34px] leading-none tabular-nums">
+                      {Math.round(usage.percent)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">% used this period</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-mono text-[34px] leading-none tabular-nums">
+                      {formatTokens(usage.totalTokens)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">tokens this period</span>
+                  </>
+                )}
+              </div>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {usage.monthlyBudget
-                ? `On pace for ${formatPercent(usage.forecast.percent)} · ${money(usage.forecast.cost)} projected`
-                : `${money(usage.forecast.cost)} projected by the end of the month`}
-            </p>
 
-            <section className="mt-6 border-t border-border py-6">
+            <section className="mt-5 border-t border-border pt-5">
               <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
-                <h2 className="text-[13px] font-medium">This month</h2>
+                <h2 className="text-[13px] font-medium">This period</h2>
                 <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1.5">
-                    <span className="h-0.5 w-4 bg-brand" aria-hidden="true" /> Usage
+                    <span className="status-square bg-success" aria-hidden="true" /> Usage
                   </span>
-                  {usage.monthlyBudget ? (
+                  {usage.percent !== null ? (
                     <>
+                      <span className="flex items-center gap-1.5">
+                        <span className="status-square bg-warning" aria-hidden="true" /> Forecast
+                      </span>
                       <span className="flex items-center gap-1.5">
                         <span
                           className="w-4 border-t border-dashed border-muted-foreground"
                           aria-hidden="true"
                         />
-                        Forecast
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="status-square bg-warning" aria-hidden="true" />
                         Monthly limit
                       </span>
                     </>
@@ -167,14 +215,52 @@ export function UsageView() {
               </div>
               <UsageChart
                 days={usage.days}
-                budget={usage.monthlyBudget}
-                forecastCost={usage.forecast.cost}
+                unit={usage.percent !== null ? "percent" : "tokens"}
+                forecast={
+                  pace
+                    ? { eta: pace.eta, projectedAtReset: pace.projectedAtReset }
+                    : null
+                }
               />
+              <div className="mt-1 flex flex-wrap items-baseline justify-between gap-2 font-mono text-[11px] text-muted-foreground">
+                <span>
+                  {pace
+                    ? `Averaging ${
+                        pace.percentPerDay < 10
+                          ? pace.percentPerDay.toFixed(1)
+                          : Math.round(pace.percentPerDay)
+                      }% a day`
+                    : ""}
+                </span>
+                <span>{formatDate(usage.periodEnd)}</span>
+              </div>
             </section>
 
-            <div className="grid gap-x-10 border-t border-border md:grid-cols-2">
-              <section className="py-6">
-                <h2 className="text-[13px] font-medium">Most used this month</h2>
+            <div className="mt-6 grid border-t border-border md:grid-cols-3 md:divide-x md:divide-border">
+              <section className="py-6 md:px-6 md:pl-0">
+                <h2 className="text-[13px] font-medium">Limits</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  When your Go usage resets
+                </p>
+                {usage.windows.length > 0 ? (
+                  <div className="mt-3 space-y-4">
+                    {usage.windows.map((window) => (
+                      <LimitRow key={window.id} window={window} now={now} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                    {reasonCopy(usage.reason)}
+                  </p>
+                )}
+                <div className="mt-3">
+                  <ConsoleLink />
+                </div>
+              </section>
+
+              <section className="border-t border-border py-6 md:border-t-0 md:px-6">
+                <h2 className="text-[13px] font-medium">Models</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">Most used this period</p>
                 {usage.models.length === 0 ? (
                   <p className="mt-3 text-xs text-muted-foreground">
                     The server did not report a model for these sessions.
@@ -188,7 +274,7 @@ export function UsageView() {
                             {model.id === "unknown" ? "Unknown model" : model.id}
                           </span>
                           <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                            {formatTokens(model.tokens)} tokens · {formatPercent(model.percent)}
+                            {formatShare(model.percent)}
                           </span>
                         </div>
                         <div className="mt-1 h-0.5 bg-muted">
@@ -202,37 +288,56 @@ export function UsageView() {
                             style={{ width: `${Math.min(100, Math.max(1, model.percent))}%` }}
                           />
                         </div>
-                        <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                          {model.sessions} session{model.sessions === 1 ? "" : "s"}
-                        </div>
                       </li>
                     ))}
                   </ul>
                 )}
-              </section>
-
-              <section className="border-t border-border py-6 md:border-t-0">
-                <h2 className="text-[13px] font-medium">Limits</h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Rolling estimates from this client.
-                </p>
-                <div className="mt-3 space-y-4">
-                  {usage.limits.map((limit) => (
-                    <LimitRow key={limit.id} limit={limit} />
-                  ))}
-                  {usage.limits.every((limit) => !limit.budget) ? (
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      Set <span className="font-mono">USAGE_*_BUDGET_USD</span> in the
-                      environment to track limits.
-                    </p>
+                <div className="mt-4 divide-y divide-border border-t border-border">
+                  <div className="flex justify-between py-2 text-[11px]">
+                    <span className="text-muted-foreground">Sessions</span>
+                    <span className="font-mono">{usage.totalSessions}</span>
+                  </div>
+                  <div className="flex justify-between py-2 text-[11px]">
+                    <span className="text-muted-foreground">Tokens</span>
+                    <span className="font-mono">{formatTokens(usage.totalTokens)}</span>
+                  </div>
+                  {usage.totalCost > 0 ? (
+                    <div className="flex justify-between py-2 text-[11px]">
+                      <span className="text-muted-foreground">Reported cost</span>
+                      <span className="font-mono">{money(usage.totalCost)}</span>
+                    </div>
                   ) : null}
                 </div>
+              </section>
+
+              <section className="border-t border-border py-6 md:border-t-0 md:px-6 md:pr-0">
+                <h2 className="text-[13px] font-medium">Account</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Managed in OpenCode Console
+                </p>
+                {usage.source === "go" ? (
+                  <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                    Limits are read from the OpenCode Go usage API. Totals, models and
+                    sessions are estimated from this client only.
+                  </p>
+                ) : (
+                  <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                    Limits are unavailable, so this page shows local estimates from this
+                    client only. {reasonCopy(usage.reason)}
+                  </p>
+                )}
+                <div className="mt-3">
+                  <ConsoleLink />
+                </div>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Updated {formatDate(usage.generatedAt)}
+                </p>
               </section>
             </div>
 
             <p className="border-t border-border pt-4 text-[11px] leading-relaxed text-muted-foreground">
-              Estimates use the cost/token totals reported for each session. They can
-              differ from your OpenCode Go billing; use the{" "}
+              Percentages come from the OpenCode Go usage API. Tokens, sessions and model
+              shares are estimated from this web client&apos;s sessions. Use the{" "}
               <a
                 href="https://opencode.ai/console"
                 target="_blank"

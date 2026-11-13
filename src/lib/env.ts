@@ -66,6 +66,15 @@ export function githubScopes(): string {
   return process.env.GITHUB_SCOPES?.trim() || "read:user repo";
 }
 
+/** Explicit OpenCode Go key. Per-user logins are read from auth.json first. */
+export function opencodeGoApiKey(): string | undefined {
+  return (
+    process.env.OPENCODE_GO_API_KEY?.trim() ||
+    process.env.OPENCODE_API_KEY?.trim() ||
+    undefined
+  );
+}
+
 /** Skills installed from Settings, shared by every user's server. */
 export function opencodeSkillsDir(): string | null {
   return process.env.OPENCODE_SKILLS_DIR?.trim() || null;

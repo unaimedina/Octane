@@ -29,6 +29,8 @@ export function UsageCard() {
       ? (usage.totalCost / usage.monthlyBudget) * 100
       : null;
 
+  // The real OpenCode Go percentages live on /usage. This card renders on every
+  // New chat page and stays on the cheap local summary from the app layout.
   return (
     <div className="surface-panel mb-5 px-3.5 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -38,21 +40,24 @@ export function UsageCard() {
             <>
               <div className="mt-1 flex flex-wrap items-baseline gap-2">
                 <span className="font-mono text-xl tabular-nums">
-                  {monthlyPercent !== null
-                    ? formatPercent(monthlyPercent)
-                    : money(usage.totalCost)}
+                  {usage.totalCost > 0
+                    ? monthlyPercent !== null
+                      ? formatPercent(monthlyPercent)
+                      : money(usage.totalCost)
+                    : `${formatTokens(usage.totalTokens)} tokens`}
                 </span>
                 <span className="text-[11px] text-muted-foreground">
-                  {usage.totalSessions} session
-                  {usage.totalSessions === 1 ? "" : "s"} ·{" "}
-                  {formatTokens(usage.totalTokens)} tokens
+                  {usage.totalCost > 0
+                    ? `${usage.totalSessions} session${usage.totalSessions === 1 ? "" : "s"} · ${formatTokens(usage.totalTokens)} tokens`
+                    : `${usage.totalSessions} session${usage.totalSessions === 1 ? "" : "s"} · estimated from this client`}
                 </span>
               </div>
-              <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                {usage.monthlyBudget
-                  ? `${money(usage.totalCost)} of ${money(usage.monthlyBudget)} · on pace for ${formatPercent(usage.forecast.percent ?? 0)}`
-                  : `${money(usage.forecast.cost)} projected by month end`}
-              </div>
+              {usage.totalCost > 0 && usage.monthlyBudget ? (
+                <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                  {money(usage.totalCost)} of {money(usage.monthlyBudget)} · on pace for{" "}
+                  {formatPercent(usage.pace?.projectedAtReset ?? monthlyPercent ?? 0)}
+                </div>
+              ) : null}
             </>
           ) : (
             <p className="mt-1 text-xs text-muted-foreground">
@@ -66,12 +71,12 @@ export function UsageCard() {
           </Link>
         </Button>
       </div>
-      {usage.hasUsage && usage.monthlyBudget ? (
+      {usage.hasUsage && usage.monthlyBudget && monthlyPercent !== null ? (
         <div className="mt-3 h-1 overflow-hidden bg-muted">
           <div
             className="h-full bg-brand transition-[width] duration-500"
             style={{
-              width: `${Math.min(100, Math.max(1, monthlyPercent ?? 0))}%`,
+              width: `${Math.min(100, Math.max(1, monthlyPercent))}%`,
             }}
           />
         </div>

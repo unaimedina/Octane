@@ -17,3 +17,18 @@ export function formatElapsed(ms: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   return `${hours}h ${minutes}m`;
 }
+
+/**
+ * Compact countdown for usage windows: `<1m`, `52m`, `1h 49m`, `2d 23h`.
+ * Expired or invalid values read `now`.
+ */
+export function formatResetIn(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "now";
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "<1m";
+  const hours = Math.floor(minutes / 60);
+  if (hours < 1) return `${minutes}m`;
+  const days = Math.floor(hours / 24);
+  if (days < 1) return `${hours}h ${minutes % 60}m`;
+  return `${days}d ${hours % 24}h`;
+}
