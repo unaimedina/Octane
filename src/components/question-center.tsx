@@ -24,14 +24,13 @@ import {
 } from "@/lib/questions";
 import { cn } from "@/lib/utils";
 
-export function QuestionCenter() {
-  const { pendingQuestions } = useAppData();
-  const request = pendingQuestions[0];
-  if (!request) return null;
-  return <QuestionDialog key={request.id} request={request} />;
-}
-
-function QuestionDialog({ request }: { request: QuestionRequest }) {
+export function QuestionDialog({
+  request,
+  waiting = 0,
+}: {
+  request: QuestionRequest;
+  waiting?: number;
+}) {
   const { replyQuestion, rejectQuestion, sessions } = useAppData();
   const [drafts, setDrafts] = React.useState<QuestionDraft[]>(() => emptyDrafts(request));
   const [busy, setBusy] = React.useState<"submit" | "dismiss" | null>(null);
@@ -81,6 +80,9 @@ function QuestionDialog({ request }: { request: QuestionRequest }) {
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader>
+          {waiting > 0 ? (
+            <div className="font-mono text-[11px] text-muted-foreground">+{waiting} waiting</div>
+          ) : null}
           {many ? (
             <div className="font-mono text-[11px] text-muted-foreground">
               {request.questions.length} questions

@@ -43,6 +43,8 @@ type AppDataValue = {
   streamDownSince: number | null;
   pendingPermissions: Permission[];
   pendingQuestions: QuestionRequest[];
+  /** id -> client arrival sequence, across permissions and questions. */
+  pendingArrival: Record<string, number>;
   replyQuestion: (request: QuestionRequest, answers: string[][]) => Promise<void>;
   rejectQuestion: (request: QuestionRequest) => Promise<void>;
   loadQuestions: (sessionID: string) => Promise<void>;
@@ -63,6 +65,15 @@ const AppDataContext = React.createContext<AppDataValue | null>(null);
 
 function sortSessions(sessions: Session[]): Session[] {
   return [...sessions].sort((a, b) => b.time.updated - a.time.updated);
+}
+
+// Client arrival order across permissions and questions. Server clocks cannot
+// be mixed with the browser clock, so the queue is ordered by when we learned
+// about each item.
+let arrivalSeq = 0;
+function nextArrival(): number {
+  arrivalSeq += 1;
+  return arrivalSeq;
 }
 
 function tagSession(session: Session): Session {
@@ -133,6 +144,13 @@ export function AppDataProvider({
     () => initialPermissions,
   );
   const [pendingQuestions, setPendingQuestions] = React.useState<QuestionRequest[]>([]);
+  const [pendingArrival, setPendingArrival] = React.useState<Record<string, number>>(() => {
+    // Permissions restored by the layout were pending before this page existed;
+    // their list order is the only ordering the server gives us.
+    const initial: Record<string, number> = {};
+    for (const item of initialPermissions) initial[item.id] = nextArrival();
+    return initial;
+  });
   const [connected, setConnected] = React.useState(false);
   const [streamDownSince, setStreamDownSince] = React.useState<number | null>(null);
   const handlers = React.useRef(new Set<(event: Event) => void>());
@@ -157,6 +175,29 @@ export function AppDataProvider({
   React.useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
+
+  /** Stamp an id the first time it enters either pending list. */
+  const stampArrival = React.useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setPendingArrival((current) => {
+      let next = current;
+      for (const id of ids) {
+        if (id in next) continue;
+        if (next === current) next = { ...current };
+        next[id] = nextArrival();
+      }
+      return next;
+    });
+  }, []);
+
+  const clearArrival = React.useCallback((id: string) => {
+    setPendingArrival((current) => {
+      if (!(id in current)) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   const subscribe = React.useCallback((handler: (event: Event) => void) => {
     handlers.current.add(handler);
@@ -228,6 +269,7 @@ export function AppDataProvider({
           const scope = new Set(Array.isArray(data?.scope) ? data.scope : []);
           // Catch-up items were already pending; do not sound for them.
           for (const item of fetched) announcedRef.current.add(item.id);
+          stampArrival(fetched.map((item) => item.id));
           setPendingPermissions((current) =>
             mergePendingPermissions({
               current,
@@ -244,7 +286,7 @@ export function AppDataProvider({
     } finally {
       state.running = false;
     }
-  }, []);
+  }, [stampArrival]);
 
   // Projects are created/renamed/deleted on /projects; refetch on navigation
   // so the sidebar groups stay current without coupling to those pages.
@@ -296,6 +338,7 @@ export function AppDataProvider({
         const request = normalizeQuestionRequest(loose.properties);
         if (request) {
           announce(request.id);
+          stampArrival([request.id]);
           setPendingQuestions((current) =>
             current.some((item) => item.id === request.id) ? current : [...current, request],
           );
@@ -303,6 +346,7 @@ export function AppDataProvider({
       } else if (loose.type === "question.replied" || loose.type === "question.rejected") {
         const props = (loose.properties ?? {}) as { requestID?: unknown };
         if (typeof props.requestID === "string") {
+          clearArrival(props.requestID);
           setPendingQuestions((current) => current.filter((item) => item.id !== props.requestID));
         }
       }
@@ -341,6 +385,7 @@ export function AppDataProvider({
         case "permission.updated":
           announce(event.properties.id);
           liveArrivalsRef.current.set(event.properties.id, Date.now());
+          stampArrival([event.properties.id]);
           setPendingPermissions((current) => {
             if (current.some((item) => item.id === event.properties.id)) return current;
             return [...current, event.properties];
@@ -348,6 +393,7 @@ export function AppDataProvider({
           break;
         case "permission.replied":
           liveArrivalsRef.current.delete(event.properties.permissionID);
+          clearArrival(event.properties.permissionID);
           setPendingPermissions((current) =>
             current.filter((item) => item.id !== event.properties.permissionID),
           );
@@ -445,7 +491,7 @@ export function AppDataProvider({
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
     };
-  }, [refreshSessions, refreshProjects, refreshPermissions]);
+  }, [refreshSessions, refreshProjects, refreshPermissions, stampArrival, clearArrival]);
 
   const createSession = React.useCallback(
     async (options?: { title?: string; directory?: string }) => {
@@ -495,9 +541,10 @@ export function AppDataProvider({
         { method: "POST", ...jsonBody({ response }) },
       );
       liveArrivalsRef.current.delete(permission.id);
+      clearArrival(permission.id);
       setPendingPermissions((current) => current.filter((item) => item.id !== permission.id));
     },
-    [],
+    [clearArrival],
   );
 
   const replyQuestion = React.useCallback(
@@ -506,9 +553,10 @@ export function AppDataProvider({
         `/sessions/${encodeURIComponent(request.sessionID)}/questions/${encodeURIComponent(request.id)}`,
         { method: "POST", ...jsonBody({ answers }) },
       );
+      clearArrival(request.id);
       setPendingQuestions((current) => current.filter((item) => item.id !== request.id));
     },
-    [],
+    [clearArrival],
   );
 
   const rejectQuestion = React.useCallback(async (request: QuestionRequest) => {
@@ -516,8 +564,9 @@ export function AppDataProvider({
       `/sessions/${encodeURIComponent(request.sessionID)}/questions/${encodeURIComponent(request.id)}`,
       { method: "DELETE" },
     );
+    clearArrival(request.id);
     setPendingQuestions((current) => current.filter((item) => item.id !== request.id));
-  }, []);
+  }, [clearArrival]);
 
   const loadQuestions = React.useCallback(async (sessionID: string) => {
     try {
@@ -527,6 +576,7 @@ export function AppDataProvider({
       if (!Array.isArray(found) || found.length === 0) return;
       // Catch-up questions were already pending; do not sound for them.
       for (const item of found) announcedRef.current.add(item.id);
+      stampArrival(found.map((item) => item.id));
       setPendingQuestions((current) => {
         const fresh = found.filter((item) => !current.some((known) => known.id === item.id));
         return fresh.length ? [...current, ...fresh] : current;
@@ -534,7 +584,7 @@ export function AppDataProvider({
     } catch {
       // Catch-up only; live events are the main path.
     }
-  }, []);
+  }, [stampArrival]);
 
   const value = React.useMemo<AppDataValue>(
     () => ({
@@ -555,6 +605,7 @@ export function AppDataProvider({
       streamDownSince,
       pendingPermissions,
       pendingQuestions,
+      pendingArrival,
       replyQuestion,
       rejectQuestion,
       loadQuestions,
@@ -586,6 +637,7 @@ export function AppDataProvider({
       streamDownSince,
       pendingPermissions,
       pendingQuestions,
+      pendingArrival,
       replyQuestion,
       rejectQuestion,
       loadQuestions,
