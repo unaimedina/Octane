@@ -17,6 +17,7 @@ import type {
   OpenCodeIntegration,
   Part,
   Path,
+  Permission,
   Session,
   SessionStatus,
   SessionUsage,
@@ -33,7 +34,9 @@ import {
   type QuestionRequest,
 } from "./questions";
 import { apiFlavor, UpstreamError, upstreamFetch, upstreamJson } from "./upstream";
+import { normalizePermissionRequest } from "./permissions";
 import { serverAuthHeader } from "./env";
+import { isTextFile, isTextLikeContentType } from "./file-kind";
 
 type Raw = Record<string, unknown>;
 
@@ -979,11 +982,7 @@ export async function getFileContent(path: string): Promise<FileContent | null> 
       if (!response.ok) return null;
       const contentType = response.headers.get("content-type") ?? "";
       const buffer = Buffer.from(await response.arrayBuffer());
-      const textLike =
-        contentType.startsWith("text/") ||
-        /json|javascript|xml|svg|x-sh|toml|yaml/.test(contentType) ||
-        (!contentType && !buffer.includes(0));
-      if (!textLike) {
+      if (!isTextFile({ path, contentType, bytes: buffer })) {
         return {
           type: "binary",
           content: buffer.toString("base64"),
@@ -1006,7 +1005,9 @@ export async function getFileContent(path: string): Promise<FileContent | null> 
       return {
         type: "text",
         content: buffer.toString("utf8"),
-        mimeType: contentType || "text/plain",
+        mimeType: isTextLikeContentType(contentType)
+          ? contentType
+          : "text/plain; charset=utf-8",
         ...(diff ? { diff } : {}),
       };
     }
@@ -1321,6 +1322,47 @@ export async function listQuestions(sessionID: string): Promise<QuestionRequest[
     if (error instanceof UpstreamError && error.status === 404) return [];
     throw error;
   }
+}
+
+export async function listPendingPermissions(sessionID: string): Promise<Permission[]> {
+  // The v1 API has no list endpoint; live events stay the only path there.
+  try {
+    if ((await apiFlavor()) !== "v2") return [];
+    const result = await upstreamJson<unknown>(
+      `/api/session/${encodeURIComponent(sessionID)}/permission`,
+    );
+    const data = Array.isArray(result)
+      ? result
+      : (result as { data?: unknown } | undefined)?.data;
+    const permissions: Permission[] = [];
+    for (const item of Array.isArray(data) ? data : []) {
+      const permission = normalizePermissionRequest(item, sessionID);
+      if (permission && permission.sessionID === sessionID) permissions.push(permission);
+    }
+    return permissions;
+  } catch (error) {
+    if (error instanceof UpstreamError && error.status === 404) return [];
+    throw error;
+  }
+}
+
+export async function listPendingPermissionsFor(
+  sessionIDs: string[],
+): Promise<Permission[]> {
+  const ids = Array.from(new Set(sessionIDs.filter(Boolean))).slice(0, 25);
+  if (ids.length === 0) return [];
+  const results = await Promise.allSettled(ids.map((id) => listPendingPermissions(id)));
+  const seen = new Set<string>();
+  const permissions: Permission[] = [];
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    for (const permission of result.value) {
+      if (seen.has(permission.id)) continue;
+      seen.add(permission.id);
+      permissions.push(permission);
+    }
+  }
+  return permissions;
 }
 
 export async function replyQuestion(

@@ -27,7 +27,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { useAppData } from "@/components/app-data";
 import { Wordmark } from "@/components/brand";
-import { QuestionCenter } from "@/components/question-center";
+import { QuestionDialog } from "@/components/question-center";
 import { TopBarSlotProvider, TopBarSlotTarget } from "@/components/top-bar-slot";
 import { useConnection } from "@/components/use-connection";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,8 @@ import { ApiError, apiJson, readCsrfCookie } from "@/lib/api";
 import type { ConnectionState } from "@/lib/connection-state";
 import { CSRF_HEADER } from "@/lib/constants";
 import { normalizeProjectDirectory } from "@/lib/project-paths";
-import type { Project, Session } from "@/lib/types";
+import { pickPendingInput } from "@/lib/pending-input";
+import type { Permission, Project, Session } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -822,18 +823,17 @@ function SidebarContent({
   );
 }
 
-function PermissionCenter() {
-  const { pendingPermissions, respondPermission } = useAppData();
-  const pathname = usePathname();
+function PermissionDialog({
+  permission,
+  waiting = 0,
+}: {
+  permission: Permission;
+  waiting?: number;
+}) {
+  const { respondPermission } = useAppData();
   const [busy, setBusy] = React.useState<string | null>(null);
-  // The open session answers its own permissions inline (chat-view); the modal
-  // is only for requests from other sessions.
-  const openId = pathname?.startsWith("/chat/") ? pathname.split("/")[2] : undefined;
-  const permission = pendingPermissions.find((item) => item.sessionID !== openId);
-  if (!permission) return null;
 
   async function respond(response: "once" | "always" | "reject") {
-    if (!permission) return;
     setBusy(response);
     try {
       await respondPermission(permission, response);
@@ -863,6 +863,9 @@ function PermissionCenter() {
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <DialogHeader>
+          {waiting > 0 ? (
+            <div className="font-mono text-[11px] text-muted-foreground">+{waiting} waiting</div>
+          ) : null}
           <div className="mb-1 flex items-center gap-2">
             <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-wider">
               permission
@@ -923,6 +926,45 @@ function PermissionCenter() {
   );
 }
 
+/**
+ * One blocking modal at a time, oldest first: questions and permissions for
+ * sessions that are not open. A permission for the open session stays inline in
+ * the chat (chat-view), so it is never a modal.
+ */
+function InputCenter() {
+  const { pendingPermissions, pendingQuestions, pendingArrival } = useAppData();
+  const pathname = usePathname();
+  const [shownId, setShownId] = React.useState<string | null>(null);
+  const openSessionId = pathname?.startsWith("/chat/")
+    ? pathname.split("/")[2]
+    : undefined;
+  const pick = pickPendingInput({
+    permissions: pendingPermissions,
+    questions: pendingQuestions,
+    openSessionId,
+    arrival: pendingArrival,
+    shownId,
+  });
+
+  // Keep the visible modal stable while it is still pending: swapping dialogs
+  // under the user would lose half-typed answers.
+  const modalId = pick.modal?.id ?? null;
+  if (modalId !== shownId) setShownId(modalId);
+
+  const modal = pick.modal;
+  if (!modal) return null;
+  if (modal.kind === "permission") {
+    const permission = pendingPermissions.find((item) => item.id === modal.id);
+    if (!permission) return null;
+    return (
+      <PermissionDialog key={permission.id} permission={permission} waiting={pick.waiting} />
+    );
+  }
+  const request = pendingQuestions.find((item) => item.id === modal.id);
+  if (!request) return null;
+  return <QuestionDialog key={request.id} request={request} waiting={pick.waiting} />;
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <TopBarSlotProvider>
@@ -934,7 +976,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 function AppShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { sessions, harnessLabel, pendingPermissions } = useAppData();
+  const { sessions, harnessLabel } = useAppData();
   const [mobileOpen, setMobileOpen] = React.useState(false);
   // One probe loop for the whole app: the top bar and the user menu share it.
   const connection = useConnection();
@@ -1031,8 +1073,7 @@ function AppShellFrame({ children }: { children: React.ReactNode }) {
         <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
       </div>
 
-      <PermissionCenter />
-      {pendingPermissions.length === 0 ? <QuestionCenter /> : null}
+      <InputCenter />
     </div>
   );
 }

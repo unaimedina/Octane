@@ -13,6 +13,7 @@ import {
   getSessions,
   getSessionStatuses,
   getSkills,
+  listPendingPermissions,
 } from "@/lib/session-service";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,15 @@ export default async function WorkspaceLayout({
   ]);
   const hiddenSet = new Set(hiddenSessionIds);
 
+  // Catch-up read so a permission that arrived while the page was loading (or
+  // while its live event was missed) is visible on the first render. Reuses the
+  // statuses already fetched above and is never filtered by `hiddenSet`: worker
+  // sessions still need their permissions answered.
+  const pending = await listPendingPermissions([], statuses).catch(() => ({
+    permissions: [],
+    scope: [],
+  }));
+
   const usage = buildUsageSummary(sessions, {
     rollingBudget: parseBudget(process.env.USAGE_ROLLING_BUDGET_USD),
     weeklyBudget: parseBudget(process.env.USAGE_WEEKLY_BUDGET_USD),
@@ -67,6 +77,7 @@ export default async function WorkspaceLayout({
       initialHealth={health}
       initialUsage={usage}
       initialStatuses={statuses}
+      initialPermissions={pending.permissions}
       username={session.username}
       harness={harness}
       harnessLabel={harnessLabel(harness)}

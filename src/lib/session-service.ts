@@ -8,6 +8,7 @@ import type {
   HealthInfo,
   MessageWithParts,
   Path,
+  Permission,
   Session,
   SessionStatus,
   SessionWithHarness,
@@ -184,6 +185,31 @@ export async function summarizeSession(
 
 export async function listQuestions(sessionID: string) {
   return oc.listQuestions(sessionID);
+}
+
+/**
+ * Catch-up read of pending permissions: every session OpenCode reports as
+ * running plus the sessions the caller asked for. `scope` lists the session IDs
+ * actually queried, so the client only drops items it re-checked.
+ */
+export async function listPendingPermissions(
+  sessionIDs: string[],
+  statuses?: Record<string, SessionStatus>,
+): Promise<{ permissions: Permission[]; scope: string[] }> {
+  try {
+    const active = statuses ?? (await getSessionStatuses());
+    const scope = new Set<string>();
+    for (const [id, status] of Object.entries(active)) {
+      if (status.type === "busy" || status.type === "retry") scope.add(id);
+    }
+    for (const id of sessionIDs) if (id) scope.add(id);
+    if (scope.size === 0) return { permissions: [], scope: [] };
+    const ids = Array.from(scope).slice(0, 25);
+    const permissions = await oc.listPendingPermissionsFor(ids);
+    return { permissions, scope: ids };
+  } catch {
+    return { permissions: [], scope: [] };
+  }
 }
 
 export async function replyQuestion(
